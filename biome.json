@@ -1,0 +1,82 @@
+{
+    "$schema": "https://biomejs.dev/schemas/2.2.5/schema.json",
+    "assist": {
+        "actions": {
+            "source": {
+                "organizeImports": "on",
+                "useSortedKeys": {
+                    "level": "on",
+                    "options": { "sortOrder": "natural" }
+                }
+            }
+        }
+    },
+    "files": {
+        "ignoreUnknown": true,
+        "includes": ["**", "!node_modules", "!.next", "!dist", "!build"]
+    },
+    "formatter": {
+        "enabled": true,
+        "indentStyle": "space",
+        "indentWidth": 4,
+        "lineWidth": 120
+    },
+    "javascript": {
+        "formatter": {
+            "arrowParentheses": "always",
+            "bracketSameLine": false,
+            "bracketSpacing": true,
+            "expand": "never",
+            "quoteStyle": "single",
+            "semicolons": "always",
+            "trailingCommas": "all"
+        }
+    },
+    "linter": {
+        "domains": {
+            "next": "recommended",
+            "react": "recommended"
+        },
+        "enabled": true,
+        "rules": {
+            "complexity": {
+                "noExcessiveCognitiveComplexity": "warn",
+                "useWhile": "error"
+            },
+            "nursery": {
+                "useSortedClasses": {
+                    "fix": "safe",
+                    "level": "error",
+                    "options": {
+                        "attributes": ["className"],
+                        "functions": ["cn", "cva", "tw", "clsx"]
+                    }
+                }
+            },
+            "recommended": true,
+            "style": {
+                "noNonNullAssertion": "off",
+                "useBlockStatements": {
+                    "fix": "safe",
+                    "level": "error",
+                    "options": {}
+                },
+                "useTemplate": {
+                    "fix": "safe",
+                    "level": "warn",
+                    "options": {}
+                }
+            },
+            "suspicious": {
+                "noExplicitAny": "off",
+                "noUnknownAtRules": "off",
+                "useIterableCallbackReturn": "off"
+            }
+        }
+    },
+    "vcs": {
+        "clientKind": "git",
+        "enabled": true,
+        "useIgnoreFile": true
+    }
+}
