@@ -12,7 +12,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 
 type BreadcrumbEntry = { label: string; href?: string };
 
-type PageHeaderProps = { title: string; breadcrumbs: BreadcrumbEntry[] };
+type PageHeaderProps = { breadcrumbs: BreadcrumbEntry[] };
 
 export const PageHeader = memo(({ breadcrumbs }: PageHeaderProps) => (
     <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -21,7 +21,7 @@ export const PageHeader = memo(({ breadcrumbs }: PageHeaderProps) => (
         <Breadcrumb>
             <BreadcrumbList>
                 {breadcrumbs.map((crumb, idx) => (
-                    <span key={idx.toString()} className="contents">
+                    <span key={crumb.href || crumb.label} className="contents">
                         {idx > 0 && <BreadcrumbSeparator />}
                         <BreadcrumbItem>
                             {crumb.href ? (
