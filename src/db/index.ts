@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import * as schema from './schema';
 
 const getDbPath = () => {
@@ -26,10 +27,27 @@ sqlite.pragma('journal_mode = WAL');
 
 export const db = drizzle(sqlite, { schema });
 
-export const initDb = () => {
+// Initialize DB once
+let initialized = false;
+
+const initDb = () => {
+    if (initialized) {
+        return;
+    }
+    initialized = true;
+
     const migrationsFolder = join(process.cwd(), 'drizzle');
 
-    if (!existsSync(migrationsFolder)) {
+    if (existsSync(migrationsFolder)) {
+        // Use Drizzle migrations if they exist
+        try {
+            migrate(db, { migrationsFolder });
+        } catch (error) {
+            // Migration already applied or tables exist
+            console.log('Migrations already applied or skipped');
+        }
+    } else {
+        // Fallback: create schema manually
         console.warn('No migrations folder found, running initial schema setup');
         sqlite.exec(`
             CREATE TABLE IF NOT EXISTS config (
@@ -77,8 +95,10 @@ export const initDb = () => {
                 content_rowid='id'
             );
         `);
-        return;
     }
 };
+
+// Run initialization immediately
+initDb();
 
 export * from './schema';
