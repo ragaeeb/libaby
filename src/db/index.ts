@@ -41,10 +41,14 @@ const initDb = () => {
     if (existsSync(migrationsFolder)) {
         // Use Drizzle migrations if they exist
         try {
+        try {
             migrate(db, { migrationsFolder });
         } catch (error) {
-            // Migration already applied or tables exist
-            console.log('Migrations already applied or skipped');
+            if (error instanceof Error && /already applied|already exists/i.test(error.message)) {
+                console.log('Migrations already applied or skipped');
+            } else {
+                throw error;
+            }
         }
     } else {
         // Fallback: create schema manually
