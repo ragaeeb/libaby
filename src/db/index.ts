@@ -41,7 +41,6 @@ const initDb = () => {
     if (existsSync(migrationsFolder)) {
         // Use Drizzle migrations if they exist
         try {
-        try {
             migrate(db, { migrationsFolder });
         } catch (error) {
             if (error instanceof Error && /already applied|already exists/i.test(error.message)) {

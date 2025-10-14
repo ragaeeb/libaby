@@ -1,14 +1,15 @@
 'use client';
 
 import { Download } from 'lucide-react';
-import { use, useCallback, useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
 import { downloadBook, getBookDetails } from '@/actions/books';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import type { Book } from '@/lib/repository';
 
-export default function ShamelaBookPage({ params }: { params: Promise<{ bookId: string }> }) {
-    const { bookId } = use(params);
+export default function ShamelaBookPage() {
+    const { bookId } = useParams<{ bookId: string }>();
     const [book, setBook] = useState<Book | null>(null);
     const [loading, setLoading] = useState(true);
     const [downloading, setDownloading] = useState(false);

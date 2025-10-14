@@ -1,25 +1,39 @@
 'use client';
 
 import { Download } from 'lucide-react';
-import { use, useCallback, useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
 import { downloadBook, getBookDetails } from '@/actions/books';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import type { Book } from '@/lib/repository';
 
-export default function TurathBookPage({ params }: { params: Promise<{ bookId: string }> }) {
-    const { bookId } = use(params);
+export default function TurathBookPage() {
+    const { bookId } = useParams<{ bookId: string }>();
     const [book, setBook] = useState<Book | null>(null);
     const [loading, setLoading] = useState(true);
     const [downloading, setDownloading] = useState(false);
 
     useEffect(() => {
+        let cancelled = false;
         const loadBook = async () => {
-            const result = await getBookDetails('turath', bookId);
-            setBook(result);
-            setLoading(false);
+            try {
+                const result = await getBookDetails('turath', bookId);
+                if (!cancelled) {
+                    setBook(result);
+                }
+            } catch (error) {
+                console.error('Failed to load book details', error);
+            } finally {
+                if (!cancelled) {
+                    setLoading(false);
+                }
+            }
         };
         loadBook();
+        return () => {
+            cancelled = true;
+        };
     }, [bookId]);
 
     const handleDownload = useCallback(async () => {

@@ -61,7 +61,7 @@ Libraries will appear in the sidebar once configured.
 
 ## Project Structure
 
-```
+```text
 src/
 ├── actions/          # Server actions for Next.js
 │   ├── config.ts     # Configuration management
@@ -206,8 +206,8 @@ MIT License - see [LICENSE](LICENSE)
 
 ## Support
 
-- **Issues**: https://github.com/ragaeeb/libaby/issues
-- **Repository**: https://github.com/ragaeeb/libaby
+- **Issues**: [github.com/ragaeeb/libaby/issues](https://github.com/ragaeeb/libaby/issues)
+- **Repository**: [github.com/ragaeeb/libaby](https://github.com/ragaeeb/libaby)
 
 ## Acknowledgments
 

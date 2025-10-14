@@ -21,7 +21,7 @@ export const PageHeader = memo(({ breadcrumbs }: PageHeaderProps) => (
         <Breadcrumb>
             <BreadcrumbList>
                 {breadcrumbs.map((crumb, idx) => (
-                    <span key={idx} className="contents">
+                    <span key={idx.toString()} className="contents">
                         {idx > 0 && <BreadcrumbSeparator />}
                         <BreadcrumbItem>
                             {crumb.href ? (
