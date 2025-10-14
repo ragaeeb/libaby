@@ -53,5 +53,6 @@
         "lint": "biome check",
         "start": "next start"
     },
+    "type": "module",
     "version": "0.1.0"
 }
