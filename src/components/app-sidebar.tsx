@@ -1,6 +1,11 @@
-import { ChevronRight, File, Folder, SettingsIcon } from 'lucide-react';
+'use client';
+
+import { ChevronRight, File, Library, SettingsIcon } from 'lucide-react';
 import Link from 'next/link';
-import type * as React from 'react';
+import { usePathname } from 'next/navigation';
+import { memo, useEffect, useState } from 'react';
+import { getLibraryBooks } from '@/actions/books';
+import { getConfig } from '@/actions/config';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
     Sidebar,
@@ -14,89 +19,110 @@ import {
     SidebarMenuSub,
     SidebarRail,
 } from '@/components/ui/sidebar';
+import type { LibraryConfig } from '@/lib/repository';
 
-// This is sample data.
-const data = {
-    tree: [
-        ['app', ['api', ['hello', ['route.ts']], 'page.tsx', 'layout.tsx', ['blog', ['page.tsx']]]],
-        ['components', ['ui', 'button.tsx', 'card.tsx'], 'header.tsx', 'footer.tsx'],
-        ['lib', ['util.ts']],
-        ['public', 'favicon.ico', 'vercel.svg'],
-        '.eslintrc.json',
-        '.gitignore',
-        'next.config.js',
-        'tailwind.config.js',
-        'package.json',
-        'README.md',
-    ],
-};
+type BookItem = { id: string; title: string };
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-    return (
-        <Sidebar {...props}>
-            <SidebarContent>
-                <SidebarGroup>
-                    <SidebarGroupLabel>Changes</SidebarGroupLabel>
-                    <SidebarGroupContent>
-                        <SidebarMenu>
-                            <SidebarMenuItem>
-                                <SidebarMenuButton>
-                                    <SettingsIcon />
-                                    <Link href="/">Settings</Link>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
-                        </SidebarMenu>
-                    </SidebarGroupContent>
-                </SidebarGroup>
-                <SidebarGroup>
-                    <SidebarGroupLabel>Files</SidebarGroupLabel>
-                    <SidebarGroupContent>
-                        <SidebarMenu>
-                            {data.tree.map((item, index) => (
-                                <Tree key={index.toString()} item={item} />
-                            ))}
-                        </SidebarMenu>
-                    </SidebarGroupContent>
-                </SidebarGroup>
-            </SidebarContent>
-            <SidebarRail />
-        </Sidebar>
-    );
-}
+type LibraryItem = { name: string; path: string; books: BookItem[] };
 
-function Tree({ item }: { item: string | any[] }) {
-    const [name, ...items] = Array.isArray(item) ? item : [item];
-
-    if (!items.length) {
-        return (
-            <SidebarMenuButton isActive={name === 'button.tsx'} className="data-[active=true]:bg-transparent">
-                <File />
-                {name}
-            </SidebarMenuButton>
-        );
-    }
+const LibraryTree = memo(({ item }: { item: LibraryItem }) => {
+    const pathname = usePathname();
+    const isActive = pathname.startsWith(`/${item.path}`);
 
     return (
         <SidebarMenuItem>
             <Collapsible
                 className="group/collapsible [&[data-state=open]>button>svg:first-child]:rotate-90"
-                defaultOpen={name === 'components' || name === 'ui'}
+                defaultOpen={isActive}
             >
                 <CollapsibleTrigger asChild>
-                    <SidebarMenuButton>
-                        <ChevronRight className="transition-transform" />
-                        <Folder />
-                        {name}
+                    <SidebarMenuButton asChild>
+                        <Link href={`/${item.path}`}>
+                            <ChevronRight className="transition-transform" />
+                            <Library />
+                            {item.name}
+                        </Link>
                     </SidebarMenuButton>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                     <SidebarMenuSub>
-                        {items.map((subItem, index) => (
-                            <Tree key={index.toString()} item={subItem} />
+                        {item.books.map((book) => (
+                            <SidebarMenuButton key={book.id} asChild isActive={pathname === `/${item.path}/${book.id}`}>
+                                <Link href={`/${item.path}/${book.id}`}>
+                                    <File />
+                                    {book.title}
+                                </Link>
+                            </SidebarMenuButton>
                         ))}
                     </SidebarMenuSub>
                 </CollapsibleContent>
             </Collapsible>
         </SidebarMenuItem>
     );
-}
+});
+
+LibraryTree.displayName = 'LibraryTree';
+
+export const AppSidebar = memo(({ ...props }: React.ComponentProps<typeof Sidebar>) => {
+    const pathname = usePathname();
+    const [libraries, setLibraries] = useState<LibraryItem[]>([]);
+
+    useEffect(() => {
+        const loadLibraries = async () => {
+            const config: LibraryConfig = await getConfig();
+            const libs: LibraryItem[] = [];
+
+            if (config.shamela) {
+                const books = await getLibraryBooks('shamela');
+                libs.push({ books, name: 'Shamela Library', path: 'shamela' });
+            }
+
+            if (config.turath) {
+                const books = await getLibraryBooks('turath');
+                libs.push({ books, name: 'Turath Library', path: 'turath' });
+            }
+
+            setLibraries(libs);
+        };
+
+        loadLibraries();
+    }, []);
+
+    return (
+        <Sidebar {...props}>
+            <SidebarContent>
+                <SidebarGroup>
+                    <SidebarGroupLabel>Application</SidebarGroupLabel>
+                    <SidebarGroupContent>
+                        <SidebarMenu>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton asChild isActive={pathname === '/settings'}>
+                                    <Link href="/settings">
+                                        <SettingsIcon />
+                                        Settings
+                                    </Link>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        </SidebarMenu>
+                    </SidebarGroupContent>
+                </SidebarGroup>
+
+                {libraries.length > 0 && (
+                    <SidebarGroup>
+                        <SidebarGroupLabel>Libraries</SidebarGroupLabel>
+                        <SidebarGroupContent>
+                            <SidebarMenu>
+                                {libraries.map((library, idx) => (
+                                    <LibraryTree key={idx.toString()} item={library} />
+                                ))}
+                            </SidebarMenu>
+                        </SidebarGroupContent>
+                    </SidebarGroup>
+                )}
+            </SidebarContent>
+            <SidebarRail />
+        </Sidebar>
+    );
+});
+
+AppSidebar.displayName = 'AppSidebar';
