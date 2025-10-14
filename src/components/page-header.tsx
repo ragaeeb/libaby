@@ -12,7 +12,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 
 type BreadcrumbEntry = { label: string; href?: string };
 
-type PageHeaderProps = { breadcrumbs: BreadcrumbEntry[] };
+type PageHeaderProps = { title: string; breadcrumbs: BreadcrumbEntry[] };
 
 export const PageHeader = memo(({ breadcrumbs }: PageHeaderProps) => (
     <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
