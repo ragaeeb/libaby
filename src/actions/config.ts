@@ -3,6 +3,8 @@
 import { getRepository, type LibraryConfig } from '@/lib/repository';
 
 export const getConfig = async (): Promise<LibraryConfig> => {
+    console.log('SERVER: getConfig called', new Date().toISOString());
+
     const repo = getRepository();
     return repo.getConfig();
 };

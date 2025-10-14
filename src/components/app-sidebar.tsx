@@ -86,7 +86,7 @@ export const AppSidebar = memo(({ ...props }: React.ComponentProps<typeof Sideba
         };
 
         loadLibraries();
-    }, [pathname]);
+    }, []);
 
     return (
         <Sidebar {...props}>
@@ -113,7 +113,7 @@ export const AppSidebar = memo(({ ...props }: React.ComponentProps<typeof Sideba
                         <SidebarGroupContent>
                             <SidebarMenu>
                                 {libraries.map((library, idx) => (
-                                    <LibraryTree key={idx} item={library} />
+                                    <LibraryTree key={idx.toString()} item={library} />
                                 ))}
                             </SidebarMenu>
                         </SidebarGroupContent>
