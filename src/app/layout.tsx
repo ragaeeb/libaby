@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { AppSidebar } from '@/components/app-sidebar';
+import { Footer } from '@/components/footer';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import './globals.css';
 
@@ -14,8 +15,13 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <html lang="en">
             <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
                 <SidebarProvider>
-                    <AppSidebar />
-                    <SidebarInset>{children}</SidebarInset>
+                    <div className="flex min-h-screen w-full flex-col">
+                        <div className="flex flex-1">
+                            <AppSidebar />
+                            <SidebarInset>{children}</SidebarInset>
+                        </div>
+                        <Footer />
+                    </div>
                 </SidebarProvider>
             </body>
         </html>
