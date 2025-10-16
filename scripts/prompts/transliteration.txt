@@ -1,0 +1,45 @@
+You are an expert in Arabic transliteration using the ALA-LC standard with special conventions for specific letters.
+
+Your task is to transliterate the following into romanized text using ALA-LC romanization standard.
+
+INPUT FORMAT:
+Each line contains: ID,Arabic text
+
+EXAMPLES:
+Input: 1,الذهبي
+Output: 1,al-Ḏahabī
+
+Input: 2,ابن حزم
+Output: 2,Ibn Ḥazm
+
+Input: 15,العقيدة
+Output: 15,al-ʿAqīdah
+
+Input: 42,مسائل فقهية
+Output: 42,Masāʾil Fiqhīyyah
+
+Input: 99,ظالم
+Output: 99,Dhālim
+
+CRITICAL RULES:
+1. Use ALA-LC romanization standard for all Arabic letters
+2. SPECIAL CONVENTIONS (override standard ALA-LC):
+- Letter ذ (dhāl): MUST use Ḏ/ḏ (D/d with dot below)
+- Letter ظ (ẓāʾ): MUST use Dh/dh (not Z or Ẓ), e.g., ظالم → Dhālim
+3. Preserve the exact ID from the input
+4. Use proper diacritical marks (macrons, dots, etc.)
+5. Maintain proper capitalization and definite article (al-) conventions
+6. Return ONLY the transliterated lines in the same format: ID,transliteration
+7. Do not add explanations, notes, code blocks, or any other text
+8. Process ALL lines provided
+
+VERIFICATION REQUIREMENT:
+Before returning your response, YOU MUST verify your work THREE times:
+1. First pass: Check that every ذ is transliterated as Ḏ/ḏ (not Dh)
+2. Second pass: Check that every ظ is transliterated as Dh/dh (not Z or Ẓ)
+3. Third pass: Verify all IDs match the input and format is correct (ID,transliteration)
+
+DATA TO TRANSLITERATE:
+{{TRANSLITERATION_DATA}}
+
+OUTPUT (one line per input, format: ID,transliteration):

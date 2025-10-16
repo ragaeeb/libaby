@@ -27,6 +27,7 @@ Libaby enables users to build and manage their personal Islamic library locally 
 
 - **Framework**: Next.js 15 with App Router and Turbopack
 - **Runtime**: Bun (>=1.3.0)
+- **Node.js**: 22.x LTS recommended for Node-based deployments
 - **Database**: SQLite with better-sqlite3 and Drizzle ORM
 - **UI**: React 19, Tailwind CSS, shadcn/ui, Radix UI
 - **Search**: SQLite FTS5 (extensible to Meilisearch, Typesense, etc.)
@@ -142,7 +143,10 @@ bun drizzle-kit migrate
 Data is stored in `./data/libaby.db` by default. Override with:
 
 ```bash
+# macOS/Linux
 DATA_DIR=/custom/path bun run dev
+# Windows (PowerShell)
+$env:DATA_DIR = "/custom/path"; bun run dev
 ```
 
 ## Development
@@ -169,6 +173,8 @@ bun run start
 ### Vercel / Cloud Platforms
 
 The app can be deployed to any Node.js-compatible platform. For SQLite persistence, use platforms with persistent storage (Fly.io, Railway, DigitalOcean App Platform).
+
+Note: Vercel’s filesystem is ephemeral; SQLite files won’t persist across deploys. Use an external volume/storage or a different host if you need persistence.
 
 **Environment Variables:**
 - `DATA_DIR`: Path to store database (default: `./data`)

@@ -1,47 +1,54 @@
-import { existsSync } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { createClient } from '@libsql/client';
+import { drizzle } from 'drizzle-orm/libsql';
+import { migrate } from 'drizzle-orm/libsql/migrator';
 import * as schema from './schema';
 
-const getDbPath = () => {
+const TURSO_URL = process.env.TURSO_DATABASE_URL;
+const TURSO_TOKEN = process.env.TURSO_AUTH_TOKEN;
+
+const createDb = async () => {
+    // Use Turso if credentials are provided
+    if (TURSO_URL && TURSO_TOKEN) {
+        const client = createClient({ authToken: TURSO_TOKEN, url: TURSO_URL });
+        return drizzle(client, { schema });
+    }
+
+    // Fall back to local SQLite file
+    const { existsSync } = await import('node:fs');
+    const { mkdir } = await import('node:fs/promises');
+    const { dirname, join } = await import('node:path');
+
     const dataDir = process.env.DATA_DIR || join(process.cwd(), 'data');
-    return join(dataDir, 'libaby.db');
-};
-
-const dbPath = getDbPath();
-
-const ensureDataDir = async () => {
+    const dbPath = join(dataDir, 'libaby.db');
     const dir = dirname(dbPath);
+
     if (!existsSync(dir)) {
         await mkdir(dir, { recursive: true });
     }
+
+    const client = createClient({ url: `file:${dbPath}` });
+
+    return drizzle(client, { schema });
 };
 
-await ensureDataDir();
-
-const sqlite = new Database(dbPath);
-sqlite.pragma('journal_mode = WAL');
-
-export const db = drizzle(sqlite, { schema });
+export const db = await createDb();
 
 // Initialize DB once
 let initialized = false;
 
-const initDb = () => {
+const initDb = async () => {
     if (initialized) {
         return;
     }
     initialized = true;
 
+    const { existsSync } = await import('node:fs');
+    const { join } = await import('node:path');
     const migrationsFolder = join(process.cwd(), 'drizzle');
 
     if (existsSync(migrationsFolder)) {
-        // Use Drizzle migrations if they exist
         try {
-            migrate(db, { migrationsFolder });
+            await migrate(db, { migrationsFolder });
         } catch (error) {
             if (error instanceof Error && /already applied|already exists/i.test(error.message)) {
                 console.log('Migrations already applied or skipped');
@@ -50,9 +57,9 @@ const initDb = () => {
             }
         }
     } else {
-        // Fallback: create schema manually
         console.warn('No migrations folder found, running initial schema setup');
-        sqlite.exec(`
+
+        await db.run(`
             CREATE TABLE IF NOT EXISTS config (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 key TEXT NOT NULL UNIQUE,
@@ -90,18 +97,10 @@ const initDb = () => {
             );
 
             CREATE INDEX IF NOT EXISTS book_content_book_id_idx ON book_content (book_id);
-
-            CREATE VIRTUAL TABLE IF NOT EXISTS book_content_fts USING fts5(
-                content,
-                chapter_title,
-                content='book_content',
-                content_rowid='id'
-            );
         `);
     }
 };
 
-// Run initialization immediately
-initDb();
+await initDb();
 
 export * from './schema';

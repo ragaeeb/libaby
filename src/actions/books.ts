@@ -1,5 +1,6 @@
 'use server';
 
+import { downloadMasterDatabase } from 'shamela';
 import { type Book, getRepository } from '@/lib/repository';
 
 type BookListItem = { id: string; title: string; author: string };
@@ -123,6 +124,8 @@ const TURATH_MOCK_DATA: Record<string, Omit<Book, 'id'>> = {
         title: 'Sharh Sahih Muslim',
     },
 };
+
+await downloadMasterDatabase({ outputFile: { path: 'data/master.json' } });
 
 export const getLibraryBooks = async (library: string): Promise<BookListItem[]> => {
     const mockData = library === 'shamela' ? SHAMELA_MOCK_DATA : TURATH_MOCK_DATA;
