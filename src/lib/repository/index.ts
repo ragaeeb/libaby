@@ -1,8 +1,7 @@
+import { filesystemRepository } from './filesystem';
 import type { Repository } from './interface';
-import { sqliteRepository } from './sqlite';
 
-export const getRepository = (): Repository => {
-    return sqliteRepository;
-};
+export const getRepository = (): Repository => filesystemRepository;
 
+export * from './filesystem';
 export * from './interface';

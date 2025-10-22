@@ -23,7 +23,6 @@ const verifyTransliterations = async () => {
 
 const transliterate = async () => {
     const master = await loadOrDownload('master', downloadMasterWithVersion, '.');
-    const keyManager = new ApiKeyManager(process.env.GOOGLE_API_KEY!);
     const promptTemplate = await Bun.file(path.join('scripts', 'prompts', 'transliteration.txt')).text();
 
     for (const key of ['authors', 'books', 'categories'] as Array<keyof typeof master>) {

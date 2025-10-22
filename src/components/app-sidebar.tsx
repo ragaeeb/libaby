@@ -37,7 +37,7 @@ const LibraryTree = memo(({ item }: { item: LibraryItem }) => {
             >
                 <CollapsibleTrigger asChild>
                     <SidebarMenuButton asChild>
-                        <Link href={`/${item.path}`}>
+                        <Link href={`/libraries/${item.path}`}>
                             <ChevronRight className="transition-transform" />
                             <Library />
                             {item.name}
@@ -47,10 +47,16 @@ const LibraryTree = memo(({ item }: { item: LibraryItem }) => {
                 <CollapsibleContent>
                     <SidebarMenuSub>
                         {item.books.map((book) => (
-                            <SidebarMenuButton key={book.id} asChild isActive={pathname === `/${item.path}/${book.id}`}>
-                                <Link href={`/${item.path}/${book.id}`}>
+                            <SidebarMenuButton
+                                key={book.id}
+                                asChild
+                                isActive={pathname === `/${item.path}/book/${book.id}`}
+                                className="truncate"
+                                title={book.title}
+                            >
+                                <Link href={`/${item.path}/${book.id}`} className="truncate">
                                     <File />
-                                    {book.title}
+                                    <span className="truncate">{book.title}</span>
                                 </Link>
                             </SidebarMenuButton>
                         ))}
