@@ -27,7 +27,7 @@ Libaby enables users to build and manage their personal Islamic library locally 
 
 - **Framework**: Next.js 15 with App Router and Turbopack
 - **Runtime**: Bun (>=1.3.0)
-- **Database**: SQLite with better-sqlite3 and Drizzle ORM
+- **Node.js**: 22.x LTS recommended for Node-based deployments
 - **UI**: React 19, Tailwind CSS, shadcn/ui, Radix UI
 - **Search**: SQLite FTS5 (extensible to Meilisearch, Typesense, etc.)
 - **State Management**: Server Actions (planned: React Query + Zustand)
@@ -70,7 +70,6 @@ src/
 ├── components/       # React components
 ├── db/               # Database schema and client
 │   ├── index.ts      # Database initialization
-│   └── schema.ts     # Drizzle schema definitions
 └── lib/
     └── repository/   # Repository pattern abstraction
         ├── interface.ts  # Repository interface (swap implementations here)
@@ -97,7 +96,6 @@ interface Repository {
 }
 ```
 
-- Currently uses SQLite with Drizzle ORM
 - To switch to MongoDB/Postgres: create new implementation following `interface.ts`
 - Update `getRepository()` in `src/lib/repository/index.ts`
 
@@ -126,23 +124,15 @@ SQLite FTS5 is configured in the migration:
 
 ## Database Management
 
-### Generate Migration
-```bash
-bun drizzle-kit generate
-```
-
-### Apply Migrations
-Migrations are applied automatically on startup. Manual application:
-```bash
-bun drizzle-kit migrate
-```
-
 ### Data Storage
 
 Data is stored in `./data/libaby.db` by default. Override with:
 
 ```bash
+# macOS/Linux
 DATA_DIR=/custom/path bun run dev
+# Windows (PowerShell)
+$env:DATA_DIR = "/custom/path"; bun run dev
 ```
 
 ## Development
@@ -169,6 +159,8 @@ bun run start
 ### Vercel / Cloud Platforms
 
 The app can be deployed to any Node.js-compatible platform. For SQLite persistence, use platforms with persistent storage (Fly.io, Railway, DigitalOcean App Platform).
+
+Note: Vercel’s filesystem is ephemeral; SQLite files won’t persist across deploys. Use an external volume/storage or a different host if you need persistence.
 
 **Environment Variables:**
 - `DATA_DIR`: Path to store database (default: `./data`)
@@ -211,7 +203,7 @@ MIT License - see [LICENSE](LICENSE)
 
 ## Acknowledgments
 
-Built with [Next.js](https://nextjs.org), [Drizzle ORM](https://orm.drizzle.team), [shadcn/ui](https://ui.shadcn.com), and [Bun](https://bun.sh).
+Built with [Next.js](https://nextjs.org), [shadcn/ui](https://ui.shadcn.com), and [Bun](https://bun.sh).
 
 ---
 
