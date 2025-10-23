@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/ragaeeb/libaby/compare/v1.1.0...v1.2.0) (2025-10-23)
+
+
+### Features
+
+* **download:** Add book downloading ([5ec203c](https://github.com/ragaeeb/libaby/commit/5ec203c6990d5055ef36cdd6ff0ad74b919062a4))
+
 # [1.1.0](https://github.com/ragaeeb/libaby/compare/v1.0.0...v1.1.0) (2025-10-22)
 
 
