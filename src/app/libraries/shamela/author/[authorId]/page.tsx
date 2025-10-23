@@ -3,8 +3,8 @@
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getAuthorDetails } from '@/actions/authors';
-import { BooksTable } from '@/components/books-table';
 import { PageHeader } from '@/components/page-header';
+import { PaginatedBooksTable } from '@/components/paginated-books-table';
 
 type AuthorData = {
     id: string;
@@ -18,6 +18,7 @@ type AuthorData = {
         title: string;
         titleTransliteration?: string;
         category: string;
+        categoryId: string;
         categoryTransliteration?: string;
     }>;
 };
@@ -82,12 +83,12 @@ export default function AuthorPage() {
                     { label: author.nameTransliteration || author.name },
                 ]}
             />
-            <div className="flex flex-1 flex-col gap-6 p-6">
+            <div className="flex w-full flex-1 flex-col gap-6 p-6">
                 <div className="space-y-2">
                     {author.nameTransliteration && (
-                        <h1 className="font-bold text-4xl tracking-tight">{author.nameTransliteration}</h1>
+                        <h1 className="break-words font-bold text-4xl tracking-tight">{author.nameTransliteration}</h1>
                     )}
-                    <h2 className="text-right font-bold text-3xl tracking-tight">{author.name}</h2>
+                    <h2 className="break-words text-right font-bold text-3xl tracking-tight">{author.name}</h2>
                     {author.deathYear && <p className="text-muted-foreground text-xl">d. {author.deathYear}</p>}
                     <p className="text-muted-foreground">
                         {author.bookCount} book{author.bookCount !== 1 ? 's' : ''} in library
@@ -103,7 +104,11 @@ export default function AuthorPage() {
 
                 <div className="mt-8 space-y-4">
                     <h2 className="font-semibold text-2xl">Books by {author.nameTransliteration || author.name}</h2>
-                    <BooksTable books={author.books} showCategory />
+                    <PaginatedBooksTable
+                        books={author.books}
+                        showCategory
+                        hasTransliterations={!!author.books[0]?.titleTransliteration}
+                    />
                 </div>
             </div>
         </>

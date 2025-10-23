@@ -1,10 +1,11 @@
 'use client';
 
-import { Download } from 'lucide-react';
+import { BookOpen, Download } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { downloadBook, getBookDetails } from '@/actions/books';
+import { downloadBook } from '@/actions/book-download';
+import { getBookDetails } from '@/actions/books';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { useLibraryStore } from '@/stores/useLibraryStore';
@@ -72,6 +73,7 @@ export default function ShamelaBookPage() {
             setBook(updated);
         } catch (error) {
             console.error('Download failed:', error);
+            alert('Download failed. Please try again.');
         }
         setDownloading(false);
     }, [bookId]);
@@ -122,49 +124,55 @@ export default function ShamelaBookPage() {
                     { label: book.titleTransliteration || book.title },
                 ]}
             />
-            <div className="flex flex-1 flex-col gap-6 p-6">
-                <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 space-y-2">
+            <div className="flex w-full flex-1 flex-col gap-6 p-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0 flex-1 space-y-2">
                         {book.titleTransliteration && (
-                            <h1 className="font-bold text-4xl tracking-tight">{book.titleTransliteration}</h1>
+                            <h1 className="break-words font-bold text-4xl tracking-tight">
+                                {book.titleTransliteration}
+                            </h1>
                         )}
-                        <h2 className="text-right font-bold text-3xl tracking-tight">{book.title}</h2>
+                        <h2 className="break-words text-right font-bold text-3xl tracking-tight">{book.title}</h2>
 
-                        {book.authorTransliteration && (
-                            <Link
-                                href={`/libraries/shamela/author/${book.authorId}`}
-                                className="block text-muted-foreground text-xl hover:underline"
-                            >
-                                {book.authorTransliteration}
-                            </Link>
-                        )}
-                        {book.authorId ? (
-                            <Link
-                                href={`/libraries/shamela/author/${book.authorId}`}
-                                className="block text-right text-muted-foreground text-xl hover:underline"
-                            >
-                                {book.author}
-                            </Link>
-                        ) : (
-                            <p className="text-right text-muted-foreground text-xl">{book.author}</p>
-                        )}
+                        <div className="flex items-center justify-between gap-4">
+                            {book.authorTransliteration && (
+                                <Link
+                                    href={`/libraries/shamela/author/${book.authorId}`}
+                                    className="text-muted-foreground text-xl hover:underline"
+                                >
+                                    {book.authorTransliteration}
+                                </Link>
+                            )}
+                            {book.authorId ? (
+                                <Link
+                                    href={`/libraries/shamela/author/${book.authorId}`}
+                                    className="text-right text-muted-foreground text-xl hover:underline"
+                                >
+                                    {book.author}
+                                </Link>
+                            ) : (
+                                <p className="text-right text-muted-foreground text-xl">{book.author}</p>
+                            )}
+                        </div>
 
-                        {book.categoryTransliteration && book.categoryId && (
-                            <Link
-                                href={`/libraries/shamela/category/${book.categoryId}`}
-                                className="mr-2 inline-block text-muted-foreground hover:underline"
-                            >
-                                {book.categoryTransliteration}
-                            </Link>
-                        )}
-                        {book.category && book.categoryId && (
-                            <Link
-                                href={`/libraries/shamela/category/${book.categoryId}`}
-                                className="inline-block text-right text-muted-foreground hover:underline"
-                            >
-                                {book.category}
-                            </Link>
-                        )}
+                        <div className="flex items-center justify-between gap-4">
+                            {book.categoryTransliteration && book.categoryId && (
+                                <Link
+                                    href={`/libraries/shamela/category/${book.categoryId}`}
+                                    className="text-muted-foreground hover:underline"
+                                >
+                                    {book.categoryTransliteration}
+                                </Link>
+                            )}
+                            {book.category && book.categoryId && (
+                                <Link
+                                    href={`/libraries/shamela/category/${book.categoryId}`}
+                                    className="text-right text-muted-foreground hover:underline"
+                                >
+                                    {book.category}
+                                </Link>
+                            )}
+                        </div>
 
                         {book.downloadedAt && (
                             <p className="text-green-600 text-sm">
@@ -172,10 +180,20 @@ export default function ShamelaBookPage() {
                             </p>
                         )}
                     </div>
-                    <Button size="lg" onClick={handleDownload} disabled={downloading || !!book.downloadedAt}>
-                        <Download className="mr-2 h-5 w-5" />
-                        {downloading ? 'Downloading...' : book.downloadedAt ? 'Downloaded' : 'Download Book'}
-                    </Button>
+                    <div className="flex shrink-0 gap-2">
+                        {book.downloadedAt && (
+                            <Button size="lg" asChild variant="outline">
+                                <Link href={`/libraries/shamela/book/${bookId}/pages`}>
+                                    <BookOpen className="mr-2 h-5 w-5" />
+                                    View Pages
+                                </Link>
+                            </Button>
+                        )}
+                        <Button size="lg" onClick={handleDownload} disabled={downloading || !!book.downloadedAt}>
+                            <Download className="mr-2 h-5 w-5" />
+                            {downloading ? 'Downloading...' : book.downloadedAt ? 'Downloaded' : 'Download Book'}
+                        </Button>
+                    </div>
                 </div>
 
                 <div className="mt-4 grid gap-6 md:grid-cols-2 lg:grid-cols-3">

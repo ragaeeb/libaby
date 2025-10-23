@@ -1,6 +1,6 @@
 'use server';
 
-import { getShamelaMasterData } from '@/lib/repository';
+import { getMasterData } from '@/lib/cache/shamela/master';
 
 type BookRow = {
     id: string;
@@ -27,22 +27,22 @@ const normalizeText = (text: string): string => {
 };
 
 export const getShamelaBooks = async (): Promise<{ books: BookRow[]; hasTransliterations: boolean }> => {
-    const { master, translations } = await getShamelaMasterData('shamela');
+    const data = await getMasterData('shamela');
 
-    if (!master) {
+    if (!data) {
         return { books: [], hasTransliterations: false };
     }
 
-    const authorMap = new Map(master.authors.map((a) => [String(a.id), a.name]));
-    const categoryMap = new Map(master.categories.map((c) => [String(c.id), c.name]));
+    const authorMap = new Map(data.master.authors.map((a) => [String(a.id), a.name]));
+    const categoryMap = new Map(data.master.categories.map((c) => [String(c.id), c.name]));
 
-    const authorTranslitMap = translations?.authors?.transliterations || {};
-    const bookTranslitMap = translations?.books?.transliterations || {};
-    const categoryTranslitMap = translations?.categories?.transliterations || {};
+    const authorTranslitMap = data.translations?.authors?.transliterations || {};
+    const bookTranslitMap = data.translations?.books?.transliterations || {};
+    const categoryTranslitMap = data.translations?.categories?.transliterations || {};
 
     const hasTransliterations = Object.keys(bookTranslitMap).length > 0;
 
-    const books: BookRow[] = master.books
+    const books: BookRow[] = data.master.books
         .filter((book) => book.is_deleted === '0')
         .map((book) => {
             const titleTranslit = bookTranslitMap[book.id];

@@ -1,9 +1,9 @@
 'use server';
 
 import { existsSync } from 'node:fs';
-import { readFile, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { MasterData } from 'shamela';
+import { getMasterData } from '@/lib/cache/shamela/master';
 
 type BookListItem = { id: string; title: string; author: string };
 
@@ -24,6 +24,7 @@ const getDownloadedBooks = async (): Promise<DownloadedBook[]> => {
         return mockData;
     }
 
+    const { readFile } = await import('node:fs/promises');
     const content = await readFile(downloadedPath, 'utf-8');
     return JSON.parse(content);
 };
@@ -40,46 +41,32 @@ const saveDownloadedBook = async (book: DownloadedBook): Promise<void> => {
 };
 
 export const getLibraryBooks = async (library: string): Promise<BookListItem[]> => {
-    const masterPath = join(getDataDir(), 'libraries', library, 'master.json');
+    const data = await getMasterData(library);
 
-    if (!existsSync(masterPath)) {
+    if (!data) {
         return [];
     }
-
-    const content = await readFile(masterPath, 'utf-8');
-    const master: MasterData = JSON.parse(content);
 
     const downloaded = await getDownloadedBooks();
     const downloadedIds = new Set(downloaded.filter((b) => b.library === library).map((b) => b.id));
 
-    const authorMap = new Map(master.authors.map((a) => [String(a.id), a.name]));
+    const authorMap = new Map(data.master.authors.map((a) => [String(a.id), a.name]));
 
-    return master.books
+    return data.master.books
         .filter((book) => book.is_deleted === '0' && downloadedIds.has(String(book.id)))
         .map((book) => ({ author: authorMap.get(book.author) || book.author, id: String(book.id), title: book.name }));
 };
 
 export const getBookDetails = async (library: string, bookId: string) => {
-    const masterPath = join(getDataDir(), 'libraries', library, 'master.json');
+    const data = await getMasterData(library);
 
-    if (!existsSync(masterPath)) {
+    if (!data) {
         return null;
     }
 
-    const content = await readFile(masterPath, 'utf-8');
-    const master: MasterData = JSON.parse(content);
-
-    const translationsPath = join(getDataDir(), 'libraries', library, 'master.en.json');
-    let translations: any = null;
-
-    if (existsSync(translationsPath)) {
-        const translationsContent = await readFile(translationsPath, 'utf-8');
-        translations = JSON.parse(translationsContent);
-    }
-
-    const authorMap = new Map(master.authors.map((a) => [String(a.id), a.name]));
-    const categoryMap = new Map(master.categories.map((c) => [String(c.id), c.name]));
-    const book = master.books.find((b) => String(b.id) === bookId && b.is_deleted === '0');
+    const authorMap = new Map(data.master.authors.map((a) => [String(a.id), a.name]));
+    const categoryMap = new Map(data.master.categories.map((c) => [String(c.id), c.name]));
+    const book = data.master.books.find((b) => String(b.id) === bookId && b.is_deleted === '0');
 
     if (!book) {
         return null;
@@ -91,10 +78,10 @@ export const getBookDetails = async (library: string, bookId: string) => {
     return {
         author: authorMap.get(book.author) || book.author,
         authorId: book.author,
-        authorTransliteration: translations?.authors?.transliterations?.[book.author],
+        authorTransliteration: data.translations?.authors?.transliterations?.[book.author],
         category: categoryMap.get(book.category),
         categoryId: book.category,
-        categoryTransliteration: translations?.categories?.transliterations?.[book.category],
+        categoryTransliteration: data.translations?.categories?.transliterations?.[book.category],
         chapters: null,
         description: null,
         downloadedAt: downloadedBook ? new Date(downloadedBook.downloadedAt) : null,
@@ -103,7 +90,7 @@ export const getBookDetails = async (library: string, bookId: string) => {
         library,
         pages: null,
         title: book.name,
-        titleTransliteration: translations?.books?.transliterations?.[book.id],
+        titleTransliteration: data.translations?.books?.transliterations?.[book.id],
     };
 };
 

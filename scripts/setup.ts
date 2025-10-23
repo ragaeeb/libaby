@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { MasterData } from 'shamela';
 import { ApiKeyManager } from '@/lib/apiKeyManager';
-import { downloadMasterWithVersion } from '@/lib/libraries/shamela4';
+import { getMaster } from '@/lib/libraries/shamela4';
 import { loadOrDownload } from '@/lib/network';
 import type { NamedItem } from '@/lib/serialization';
 import { processTransliterations } from '@/setup/transliteration/generate';
@@ -22,7 +22,7 @@ const verifyTransliterations = async () => {
 };
 
 const transliterate = async () => {
-    const master = await loadOrDownload('master', downloadMasterWithVersion, '.');
+    const master = await loadOrDownload('master', getMaster, '.');
     const promptTemplate = await Bun.file(path.join('scripts', 'prompts', 'transliteration.txt')).text();
 
     for (const key of ['authors', 'books', 'categories'] as Array<keyof typeof master>) {
