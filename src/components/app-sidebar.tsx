@@ -28,6 +28,7 @@ type LibraryItem = { name: string; path: string; books: BookItem[] };
 const LibraryTree = memo(({ item }: { item: LibraryItem }) => {
     const pathname = usePathname();
     const isActive = pathname.startsWith(`/${item.path}`);
+    console.log('item', item);
 
     return (
         <SidebarMenuItem>
@@ -46,20 +47,24 @@ const LibraryTree = memo(({ item }: { item: LibraryItem }) => {
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                     <SidebarMenuSub>
-                        {item.books.map((book) => (
-                            <SidebarMenuButton
-                                key={book.id}
-                                asChild
-                                isActive={pathname === `/${item.path}/book/${book.id}`}
-                                className="truncate"
-                                title={book.title}
-                            >
-                                <Link href={`/${item.path}/${book.id}`} className="truncate">
-                                    <File />
-                                    <span className="truncate">{book.title}</span>
-                                </Link>
-                            </SidebarMenuButton>
-                        ))}
+                        {item.books.map((book) => {
+                            const link = `/libraries/${item.path}/book/${book.id}`;
+
+                            return (
+                                <SidebarMenuButton
+                                    key={book.id}
+                                    asChild
+                                    isActive={pathname === link}
+                                    className="truncate"
+                                    title={book.title}
+                                >
+                                    <Link href={link} className="truncate">
+                                        <File />
+                                        <span className="truncate">{book.title}</span>
+                                    </Link>
+                                </SidebarMenuButton>
+                            );
+                        })}
                     </SidebarMenuSub>
                 </CollapsibleContent>
             </Collapsible>
