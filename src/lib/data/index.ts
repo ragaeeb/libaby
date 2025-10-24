@@ -18,7 +18,7 @@ type TranslationsData = {
 
 type CachedLibrary = { loadedAt: number; master: MasterData; translations: TranslationsData | null };
 
-type LibraryConfig = { shamela?: string; };
+type LibraryConfig = { shamela?: string };
 
 type DownloadedBook = { downloadedAt: string; id: string; library: string };
 
@@ -87,12 +87,7 @@ export const getDownloadedBooks = async (): Promise<DownloadedBook[]> => {
     const downloadedPath = join(getDataDir(), 'downloaded.json');
 
     if (!existsSync(downloadedPath)) {
-        const mockData: DownloadedBook[] = [
-            { downloadedAt: new Date().toISOString(), id: '335', library: 'shamela' },
-            { downloadedAt: new Date().toISOString(), id: '336', library: 'shamela' },
-        ];
-        await writeFile(downloadedPath, JSON.stringify(mockData, null, 2));
-        return mockData;
+        return [];
     }
 
     const content = await readFile(downloadedPath, 'utf-8');
@@ -116,4 +111,4 @@ const ensureDir = async (path: string) => {
     }
 };
 
-export { type CachedLibrary, type DownloadedBook, type LibraryConfig, type MasterData, type TranslationsData };
+export type { CachedLibrary, DownloadedBook, LibraryConfig, MasterData, TranslationsData };

@@ -32,9 +32,13 @@ export default function SearchPage() {
         }
 
         setIsSearching(true);
-        const searchResults = await searchBooks('shamela', query);
-        setResults(searchResults);
-        setIsSearching(false);
+        try {
+            const res = await fetch(`/api/search?library=shamela&q=${encodeURIComponent(query)}`);
+            const searchResults = await res.json();
+            setResults(searchResults);
+        } finally {
+            setIsSearching(false);
+        }
     }, [query]);
 
     const handleKeyDown = useCallback(

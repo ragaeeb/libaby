@@ -41,8 +41,14 @@ export const indexBooks = async (library: string) => {
 
     const index = client.index(indexName);
 
-    await client.createIndex(indexName, { primaryKey: 'id' });
-
+    try {
+        await client.createIndex(indexName, { primaryKey: 'id' });
+    } catch (e: any) {
+        // ignore if it already exists
+        if (!(e && (e.code === 'index_already_exists' || e.errorCode === 'index_already_exists'))) {
+            throw e;
+        }
+    }
     await index.updateSettings({
         filterableAttributes: ['bookId', 'authorId'],
         searchableAttributes: ['content', 'bookTitle', 'authorName'],
@@ -68,11 +74,19 @@ export const indexBooks = async (library: string) => {
     for (const file of jsonFiles) {
         const bookId = file.replace('.json', '');
         const filePath = join(booksDir, file);
-        const content = await readFile(filePath, 'utf-8');
-        const bookData = JSON.parse(content);
 
         const book = masterData.master.books.find((b) => String(b.id) === bookId);
+
         if (!book) {
+            continue;
+        }
+
+        let bookData: any;
+        try {
+            const content = await readFile(filePath, 'utf-8');
+            bookData = JSON.parse(content);
+        } catch (e) {
+            console.warn(`Skipping ${filePath}: ${e}`);
             continue;
         }
 
@@ -80,7 +94,7 @@ export const indexBooks = async (library: string) => {
             .filter((p: any) => p.content && !p.content.includes('is_deleted'))
             .map((p: any) => ({
                 authorId: book.author,
-                authorName: authorMap.get(book.author) || book.author,
+                authorName: authorMap.get(String(book.author)) || String(book.author),
                 bookId,
                 bookTitle: book.name,
                 content: p.content.split('_________')[0],
@@ -107,7 +121,7 @@ export const searchBooks = async (library: string, query: string, bookId?: strin
         const index = client.index(indexName);
 
         const results = await index.search<SearchHit>(query, {
-            filter: bookId ? `bookId = ${bookId}` : undefined,
+            filter: bookId ? `bookId = "${String(bookId).replace(/"/g, '\\"')}"` : undefined,
             limit: 100,
         });
 

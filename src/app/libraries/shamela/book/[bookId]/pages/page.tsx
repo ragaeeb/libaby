@@ -241,19 +241,7 @@ export default function BookPagesPage() {
         }));
     }, [bookData, selectedTitleId, searchQuery, searchResults]);
 
-    const titlesTree = useMemo(() => {
-        if (!bookData?.titles) {
-            return [];
-        }
-
-        const buildTree = (parentId = 0): any[] => {
-            return bookData.titles
-                .filter((t) => (t.parent || 0) === parentId)
-                .map((t) => ({ ...t, children: buildTree(t.id) }));
-        };
-
-        return buildTree();
-    }, [bookData]);
+    const hasTitles = !!bookData?.titles?.length;
 
     if (loading) {
         return (
@@ -337,7 +325,7 @@ export default function BookPagesPage() {
                             </Button>
                         )}
 
-                        {!searchQuery.trim() && titlesTree.length > 0 && (
+                        {!searchQuery.trim() && hasTitles && (
                             <Select value={selectedTitleId} onValueChange={setSelectedTitleId}>
                                 <SelectTrigger className="w-[200px]">
                                     <BookOpen className="mr-2 h-4 w-4" />

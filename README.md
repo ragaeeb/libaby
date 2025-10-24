@@ -100,7 +100,7 @@ SHAMELA_API_KEY=your_shamela_key
 SHAMELA_BOOKS_ENDPOINT=https://shamela.ws/api/books
 SHAMELA_MASTER_ENDPOINT=https://shamela.ws/api/master
 MEILI_HOST=http://localhost:7700
-MEILI_MASTER_KEY=masterKey
+MEILI_MASTER_KEY=your-secure-key-here
 ```
 
 ### Running the Application

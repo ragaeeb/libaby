@@ -1,3 +1,4 @@
+import process from 'node:process';
 import { indexBooks } from '@/actions/search';
 
 const main = async () => {
@@ -8,4 +9,7 @@ const main = async () => {
     console.log('Indexing complete!');
 };
 
-main().catch(console.error);
+main().catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+});
