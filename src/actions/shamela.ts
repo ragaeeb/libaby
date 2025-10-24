@@ -1,20 +1,20 @@
 'use server';
 
-import { getMasterData } from '@/lib/cache/shamela/master';
+import { getMasterData } from '@/lib/data';
 
 type BookRow = {
-    id: string;
-    title: string;
-    titleTransliteration?: string;
-    titleNormalized?: string;
     author: string;
     authorId: string;
-    authorTransliteration?: string;
     authorNormalized?: string;
+    authorTransliteration?: string;
     category: string;
     categoryId: string;
-    categoryTransliteration?: string;
     categoryNormalized?: string;
+    categoryTransliteration?: string;
+    id: string;
+    title: string;
+    titleNormalized?: string;
+    titleTransliteration?: string;
 };
 
 const normalizeText = (text: string): string => {

@@ -1,6 +1,6 @@
 'use server';
 
-import { getMasterData } from '@/lib/cache/shamela/master';
+import { getMasterData } from '@/lib/data';
 
 export const getAuthorDetails = async (library: string, authorId: string) => {
     const data = await getMasterData(library);
