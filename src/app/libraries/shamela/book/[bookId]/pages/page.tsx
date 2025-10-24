@@ -1,19 +1,30 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-import { ArrowUpDown, BookOpen } from 'lucide-react';
+import { ArrowUpDown, BookOpen, Search } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getBookContent } from '@/actions/book-download';
 import { getBookDetails } from '@/actions/books';
+import { searchBooks } from '@/actions/search';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type Page, useBookPagesStore } from '@/stores/useBookPagesStore';
 
-type PageRow = { id: number; content: string; pageNumber?: string; part?: string };
+type PageRow = { content: string; id: number; pageNumber?: string; part?: string };
+
+const extractTitle = (content: string): { body: string; title?: string } => {
+    const cleaned = content.replace(/\r/g, '\n');
+    const titleMatch = cleaned.match(/<span[^>]*>\[([^\]]+)\]<\/span>/);
+    if (titleMatch) {
+        return { body: cleaned.replace(/<span[^>]*>\[([^\]]+)\]<\/span>\s*/g, ''), title: titleMatch[1] };
+    }
+    return { body: cleaned };
+};
 
 export default function BookPagesPage() {
     const router = useRouter();
@@ -22,12 +33,14 @@ export default function BookPagesPage() {
     const [loading, setLoading] = useState(true);
     const [bookTitle, setBookTitle] = useState<string>('');
     const [selectedTitleId, setSelectedTitleId] = useState<string>('all');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<PageRow[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
 
     const bookData = getBookData(bookId);
 
     useEffect(() => {
         const loadData = async () => {
-            // Check store first
             if (bookData) {
                 setLoading(false);
                 const details = await getBookDetails('shamela', bookId);
@@ -37,7 +50,6 @@ export default function BookPagesPage() {
                 return;
             }
 
-            // Load from server
             const [content, details] = await Promise.all([
                 getBookContent('shamela', bookId),
                 getBookDetails('shamela', bookId),
@@ -55,7 +67,34 @@ export default function BookPagesPage() {
         loadData();
     }, [bookId, bookData, getBookData, setBookData]);
 
-    const columns: ColumnDef<PageRow>[] = useMemo(
+    const handleSearch = useCallback(async () => {
+        if (!searchQuery.trim()) {
+            setSearchResults([]);
+            return;
+        }
+
+        setIsSearching(true);
+        const results = await searchBooks('shamela', searchQuery, bookId);
+        const mapped = results.map((r) => ({
+            content: r.content,
+            id: r.pageId,
+            pageNumber: r.pageNumber,
+            part: undefined,
+        }));
+        setSearchResults(mapped);
+        setIsSearching(false);
+    }, [searchQuery, bookId]);
+
+    const handleKeyDown = useCallback(
+        (e: React.KeyboardEvent) => {
+            if (e.key === 'Enter') {
+                handleSearch();
+            }
+        },
+        [handleSearch],
+    );
+
+    const columns = useMemo<ColumnDef<PageRow>[]>(
         () => [
             {
                 accessorKey: 'id',
@@ -122,14 +161,26 @@ export default function BookPagesPage() {
                 accessorKey: 'content',
                 cell: ({ row }) => {
                     const content = String(row.getValue('content'));
-                    const preview = content.split('_________')[0].slice(0, 200);
+                    const mainContent = content.split('_________')[0];
+                    const { body, title } = extractTitle(mainContent);
+                    const lines = body.split('\n').filter((l) => l.trim());
+                    const preview = lines.slice(0, 3).join(' ').slice(0, 300);
+
                     return (
                         <Link
                             href={`/libraries/shamela/book/${bookId}/pages/${row.original.id}`}
-                            className="block text-right hover:underline"
+                            className="block hover:underline"
                         >
-                            <div className="line-clamp-2 text-sm" dir="rtl">
-                                {preview}...
+                            <div className="space-y-2 py-2">
+                                {title && (
+                                    <div className="rounded bg-primary/10 px-3 py-1.5 text-right font-semibold text-sm">
+                                        <span dir="rtl">{title}</span>
+                                    </div>
+                                )}
+                                <div className="text-right text-sm leading-relaxed" dir="rtl">
+                                    {preview}
+                                    {(lines.length > 3 || preview.length >= 300) && '...'}
+                                </div>
                             </div>
                         </Link>
                     );
@@ -141,6 +192,10 @@ export default function BookPagesPage() {
     );
 
     const filteredPages = useMemo(() => {
+        if (searchQuery.trim() && searchResults.length > 0) {
+            return searchResults;
+        }
+
         if (!bookData) {
             return [];
         }
@@ -160,14 +215,14 @@ export default function BookPagesPage() {
             pageNumber: p.number || p.page?.toString(),
             part: p.part || undefined,
         }));
-    }, [bookData, selectedTitleId]);
+    }, [bookData, selectedTitleId, searchQuery, searchResults]);
 
     const titlesTree = useMemo(() => {
         if (!bookData?.titles) {
             return [];
         }
 
-        const buildTree = (parentId: number = 0): any[] => {
+        const buildTree = (parentId = 0): any[] => {
             return bookData.titles
                 .filter((t) => (t.parent || 0) === parentId)
                 .map((t) => ({ ...t, children: buildTree(t.id) }));
@@ -225,7 +280,7 @@ export default function BookPagesPage() {
                 ]}
             />
             <div className="flex flex-1 flex-col gap-6 p-6">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div className="space-y-1">
                         <h1 className="font-bold text-3xl tracking-tight">Book Pages</h1>
                         <p className="text-muted-foreground">
@@ -233,32 +288,53 @@ export default function BookPagesPage() {
                         </p>
                     </div>
 
-                    {titlesTree.length > 0 && (
-                        <Select value={selectedTitleId} onValueChange={setSelectedTitleId}>
-                            <SelectTrigger className="w-[300px]">
-                                <BookOpen className="mr-2 h-4 w-4" />
-                                <SelectValue placeholder="Filter by title..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Pages</SelectItem>
-                                {bookData.titles.map((title) => (
-                                    <SelectItem key={title.id} value={String(title.id)}>
-                                        <div className="text-right" dir="rtl">
-                                            {title.content}
-                                        </div>
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    )}
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                        <div className="relative min-w-[300px]">
+                            <Input
+                                dir="rtl"
+                                placeholder="ابحث في الكتاب..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                className="pr-10"
+                            />
+                            <Search className="absolute top-2.5 right-3 h-5 w-5 text-muted-foreground" />
+                        </div>
+
+                        {searchQuery.trim() && (
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setSearchQuery('');
+                                    setSearchResults([]);
+                                }}
+                            >
+                                Clear
+                            </Button>
+                        )}
+
+                        {!searchQuery.trim() && titlesTree.length > 0 && (
+                            <Select value={selectedTitleId} onValueChange={setSelectedTitleId}>
+                                <SelectTrigger className="w-[200px]">
+                                    <BookOpen className="mr-2 h-4 w-4" />
+                                    <SelectValue placeholder="Filter by title..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Pages</SelectItem>
+                                    {bookData.titles.map((title) => (
+                                        <SelectItem key={title.id} value={String(title.id)}>
+                                            <div className="text-right" dir="rtl">
+                                                {title.content}
+                                            </div>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
+                    </div>
                 </div>
 
-                <DataTable
-                    columns={columns}
-                    data={filteredPages}
-                    searchKey="content"
-                    searchPlaceholder="Search page content..."
-                />
+                <DataTable columns={columns} data={filteredPages} />
             </div>
         </>
     );

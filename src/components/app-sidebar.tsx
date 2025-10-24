@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronRight, File, Library, SettingsIcon } from 'lucide-react';
+import { ChevronRight, File, Library, Search, SettingsIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { memo, useEffect, useState } from 'react';
@@ -19,16 +19,15 @@ import {
     SidebarMenuSub,
     SidebarRail,
 } from '@/components/ui/sidebar';
-import type { LibraryConfig } from '@/lib/repository';
+import type { LibraryConfig } from '@/lib/data';
 
 type BookItem = { id: string; title: string };
 
-type LibraryItem = { name: string; path: string; books: BookItem[] };
+type LibraryItem = { books: BookItem[]; name: string; path: string };
 
 const LibraryTree = memo(({ item }: { item: LibraryItem }) => {
     const pathname = usePathname();
     const isActive = pathname.startsWith(`/${item.path}`);
-    console.log('item', item);
 
     return (
         <SidebarMenuItem>
@@ -88,11 +87,6 @@ export const AppSidebar = memo(({ ...props }: React.ComponentProps<typeof Sideba
                 libs.push({ books, name: 'Shamela Library', path: 'shamela' });
             }
 
-            if (config.turath) {
-                const books = await getLibraryBooks('turath');
-                libs.push({ books, name: 'Turath Library', path: 'turath' });
-            }
-
             setLibraries(libs);
         };
 
@@ -106,6 +100,14 @@ export const AppSidebar = memo(({ ...props }: React.ComponentProps<typeof Sideba
                     <SidebarGroupLabel>Application</SidebarGroupLabel>
                     <SidebarGroupContent>
                         <SidebarMenu>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton asChild isActive={pathname === '/search'}>
+                                    <Link href="/search">
+                                        <Search />
+                                        Search
+                                    </Link>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
                             <SidebarMenuItem>
                                 <SidebarMenuButton asChild isActive={pathname === '/settings'}>
                                     <Link href="/settings">

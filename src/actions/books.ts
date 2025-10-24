@@ -1,44 +1,8 @@
 'use server';
 
-import { existsSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { getMasterData } from '@/lib/cache/shamela/master';
+import { getDownloadedBooks, getMasterData, saveDownloadedBook } from '@/lib/data';
 
-type BookListItem = { id: string; title: string; author: string };
-
-type DownloadedBook = { id: string; library: string; downloadedAt: string };
-
-const getDataDir = () => process.env.DATA_DIR || join(process.cwd(), 'data');
-
-const getDownloadedBooks = async (): Promise<DownloadedBook[]> => {
-    const downloadedPath = join(getDataDir(), 'downloaded.json');
-
-    if (!existsSync(downloadedPath)) {
-        const mockData: DownloadedBook[] = [
-            { downloadedAt: new Date().toISOString(), id: '335', library: 'shamela' },
-            { downloadedAt: new Date().toISOString(), id: '336', library: 'shamela' },
-            { downloadedAt: new Date().toISOString(), id: '501', library: 'turath' },
-        ];
-        await writeFile(downloadedPath, JSON.stringify(mockData, null, 2));
-        return mockData;
-    }
-
-    const { readFile } = await import('node:fs/promises');
-    const content = await readFile(downloadedPath, 'utf-8');
-    return JSON.parse(content);
-};
-
-const saveDownloadedBook = async (book: DownloadedBook): Promise<void> => {
-    const downloaded = await getDownloadedBooks();
-    const existing = downloaded.find((b) => b.id === book.id && b.library === book.library);
-
-    if (!existing) {
-        downloaded.push(book);
-        const downloadedPath = join(getDataDir(), 'downloaded.json');
-        await writeFile(downloadedPath, JSON.stringify(downloaded, null, 2));
-    }
-};
+type BookListItem = { author: string; id: string; title: string };
 
 export const getLibraryBooks = async (library: string): Promise<BookListItem[]> => {
     const data = await getMasterData(library);

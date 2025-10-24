@@ -10,25 +10,42 @@ import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { type Page, useBookPagesStore } from '@/stores/useBookPagesStore';
 
-function renderPageContent(content: string) {
-    const parts = content.split('_________');
-
-    if (parts.length === 1) {
-        // No footnotes
-        return (
-            <div className="prose prose-lg max-w-none" dir="rtl">
-                <div className="whitespace-pre-wrap text-right leading-relaxed">{content}</div>
-            </div>
-        );
+const extractTitle = (content: string): { body: string; title?: string } => {
+    const cleaned = content.replace(/\r/g, '\n');
+    const titleMatch = cleaned.match(/^\s*\[([^\]]+)\]/);
+    if (titleMatch) {
+        return { body: cleaned.replace(/^\s*\[([^\]]+)\]\s*/, ''), title: titleMatch[1] };
     }
+    return { body: cleaned };
+};
 
-    // Has footnotes
-    const [body, ...footnotes] = parts;
+const renderPageContent = (content: string) => {
+    const parts = content.split('_________');
+    const mainContent = parts[0].replace(/\r/g, '\n');
+    const { body, title } = extractTitle(mainContent);
+
+    const bodyParts = body
+        .split('\n')
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0);
+    const footnotes = parts.slice(1).map((f) => f.replace(/\r/g, '\n').trim());
 
     return (
         <div className="space-y-8">
+            {title && (
+                <div className="rounded-lg bg-primary/10 px-6 py-4 text-right">
+                    <h2 className="font-bold text-2xl" dir="rtl">
+                        {title}
+                    </h2>
+                </div>
+            )}
+
             <div className="prose prose-lg max-w-none" dir="rtl">
-                <div className="whitespace-pre-wrap text-right leading-relaxed">{body.trim()}</div>
+                {bodyParts.map((part, idx) => (
+                    <p key={idx} className="mb-4 text-right leading-relaxed">
+                        {part}
+                    </p>
+                ))}
             </div>
 
             {footnotes.length > 0 && (
@@ -37,7 +54,7 @@ function renderPageContent(content: string) {
                     <div className="prose prose-sm max-w-none" dir="rtl">
                         {footnotes.map((footnote, idx) => (
                             <div key={idx} className="mb-4 text-right text-muted-foreground leading-relaxed">
-                                {footnote.trim()}
+                                {footnote}
                             </div>
                         ))}
                     </div>
@@ -45,7 +62,7 @@ function renderPageContent(content: string) {
             )}
         </div>
     );
-}
+};
 
 export default function SinglePageView() {
     const router = useRouter();
@@ -62,14 +79,12 @@ export default function SinglePageView() {
             const bookData = getBookData(bookId);
 
             if (!bookData) {
-                // Load from server
                 const content = await getBookContent('shamela', bookId);
                 if (content) {
                     setBookData(bookId, content);
                     const currentPage = content.pages.find((p) => p.id === Number(pageId));
                     setPage(currentPage || null);
 
-                    // Find prev/next
                     const currentIdx = content.pages.findIndex((p) => p.id === Number(pageId));
                     if (currentIdx > 0) {
                         setPrevPageId(content.pages[currentIdx - 1].id);
@@ -82,7 +97,6 @@ export default function SinglePageView() {
                 const currentPage = bookData.pages.find((p) => p.id === Number(pageId));
                 setPage(currentPage || null);
 
-                // Find prev/next
                 const currentIdx = bookData.pages.findIndex((p) => p.id === Number(pageId));
                 if (currentIdx > 0) {
                     setPrevPageId(bookData.pages[currentIdx - 1].id);
