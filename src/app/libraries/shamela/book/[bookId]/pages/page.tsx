@@ -17,13 +17,21 @@ import { type Page, useBookPagesStore } from '@/stores/useBookPagesStore';
 
 type PageRow = { content: string; id: number; pageNumber?: string; part?: string };
 
-const extractTitle = (content: string): { body: string; title?: string } => {
+const extractTitles = (content: string): { body: string; titles: string[] } => {
     const cleaned = content.replace(/\r/g, '\n');
-    const titleMatch = cleaned.match(/<span[^>]*>\[([^\]]+)\]<\/span>/);
-    if (titleMatch) {
-        return { body: cleaned.replace(/<span[^>]*>\[([^\]]+)\]<\/span>\s*/g, ''), title: titleMatch[1] };
+    const titles: string[] = [];
+
+    // Extract all title spans
+    const titleRegex = /<span[^>]*data-type="title"[^>]*>\[([^\]]+)\]\s*\[?<\/span>/g;
+    let match;
+    while ((match = titleRegex.exec(cleaned)) !== null) {
+        titles.push(match[1]);
     }
-    return { body: cleaned };
+
+    // Remove all title spans from body
+    const body = cleaned.replace(/<span[^>]*data-type="title"[^>]*>.*?<\/span>/g, '').trim();
+
+    return { body, titles };
 };
 
 export default function BookPagesPage() {
@@ -160,32 +168,48 @@ export default function BookPagesPage() {
             {
                 accessorKey: 'content',
                 cell: ({ row }) => {
-                    const content = String(row.getValue('content'));
+                    const content = String(row.getValue('content') || '');
+                    if (!content) {
+                        return <span className="text-muted-foreground">No content</span>;
+                    }
+
                     const mainContent = content.split('_________')[0];
-                    const { body, title } = extractTitle(mainContent);
-                    const lines = body.split('\n').filter((l) => l.trim());
-                    const preview = lines.slice(0, 3).join(' ').slice(0, 300);
+                    const { body, titles } = extractTitles(mainContent);
+                    const lines = body
+                        .split('\n')
+                        .map((l) => l.trim())
+                        .filter((l) => l.length > 0);
+                    const previewLines = lines.slice(0, 5);
 
                     return (
-                        <Link
-                            href={`/libraries/shamela/book/${bookId}/pages/${row.original.id}`}
-                            className="block hover:underline"
-                        >
+                        <Link href={`/libraries/shamela/book/${bookId}/pages/${row.original.id}`} className="block">
                             <div className="space-y-2 py-2">
-                                {title && (
-                                    <div className="rounded bg-primary/10 px-3 py-1.5 text-right font-semibold text-sm">
-                                        <span dir="rtl">{title}</span>
+                                {titles.length > 0 && (
+                                    <div className="space-y-1">
+                                        {titles.slice(0, 2).map((title, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="rounded bg-primary/10 px-3 py-1.5 text-right font-semibold text-sm"
+                                            >
+                                                <span dir="rtl">{title}</span>
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
-                                <div className="text-right text-sm leading-relaxed" dir="rtl">
-                                    {preview}
-                                    {(lines.length > 3 || preview.length >= 300) && '...'}
+                                <div className="space-y-1 text-right text-sm leading-relaxed" dir="rtl">
+                                    {previewLines.map((line, idx) => (
+                                        <div key={idx} className="break-words">
+                                            {line}
+                                        </div>
+                                    ))}
+                                    {lines.length > 5 && <div className="text-muted-foreground">...</div>}
                                 </div>
                             </div>
                         </Link>
                     );
                 },
                 header: () => <div className="text-right">المحتوى</div>,
+                meta: { className: 'whitespace-normal' },
             },
         ],
         [bookId],

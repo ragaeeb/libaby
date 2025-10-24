@@ -10,19 +10,27 @@ import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { type Page, useBookPagesStore } from '@/stores/useBookPagesStore';
 
-const extractTitle = (content: string): { body: string; title?: string } => {
+const extractTitles = (content: string): { body: string; titles: string[] } => {
     const cleaned = content.replace(/\r/g, '\n');
-    const titleMatch = cleaned.match(/^\s*\[([^\]]+)\]/);
-    if (titleMatch) {
-        return { body: cleaned.replace(/^\s*\[([^\]]+)\]\s*/, ''), title: titleMatch[1] };
+    const titles: string[] = [];
+
+    // Extract all title spans
+    const titleRegex = /<span[^>]*data-type="title"[^>]*>\[([^\]]+)\]\s*\[?<\/span>/g;
+    let match;
+    while ((match = titleRegex.exec(cleaned)) !== null) {
+        titles.push(match[1]);
     }
-    return { body: cleaned };
+
+    // Remove all title spans from body
+    const body = cleaned.replace(/<span[^>]*data-type="title"[^>]*>.*?<\/span>/g, '').trim();
+
+    return { body, titles };
 };
 
 const renderPageContent = (content: string) => {
     const parts = content.split('_________');
     const mainContent = parts[0].replace(/\r/g, '\n');
-    const { body, title } = extractTitle(mainContent);
+    const { body, titles } = extractTitles(mainContent);
 
     const bodyParts = body
         .split('\n')
@@ -32,11 +40,15 @@ const renderPageContent = (content: string) => {
 
     return (
         <div className="space-y-8">
-            {title && (
-                <div className="rounded-lg bg-primary/10 px-6 py-4 text-right">
-                    <h2 className="font-bold text-2xl" dir="rtl">
-                        {title}
-                    </h2>
+            {titles.length > 0 && (
+                <div className="space-y-3">
+                    {titles.map((title, idx) => (
+                        <div key={idx} className="rounded-lg bg-primary/10 px-6 py-4 text-right">
+                            <h2 className="font-bold text-2xl" dir="rtl">
+                                {title}
+                            </h2>
+                        </div>
+                    ))}
                 </div>
             )}
 
