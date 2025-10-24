@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/ragaeeb/libaby/compare/v1.2.0...v1.3.0) (2025-10-24)
+
+
+### Features
+
+* **search:** Add search screen ([#3](https://github.com/ragaeeb/libaby/issues/3)) ([349849e](https://github.com/ragaeeb/libaby/commit/349849e386a1c4ceea0dbe211a095ead19b67169))
+
 # [1.2.0](https://github.com/ragaeeb/libaby/compare/v1.1.0...v1.2.0) (2025-10-23)
 
 
