@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getBookContent } from '@/actions/book-download';
 import { getBookDetails } from '@/actions/books';
 import { searchBooks } from '@/actions/search';
+import { CircularBarsSpinnerLoader } from '@/components/cuicui/circular-bars-spinner-loader';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
@@ -20,17 +21,12 @@ type PageRow = { content: string; id: number; pageNumber?: string; part?: string
 const extractTitles = (content: string): { body: string; titles: string[] } => {
     const cleaned = content.replace(/\r/g, '\n');
     const titles: string[] = [];
-
-    // Extract all title spans
     const titleRegex = /<span[^>]*data-type="title"[^>]*>\[([^\]]+)\]\s*\[?<\/span>/g;
     let match;
     while ((match = titleRegex.exec(cleaned)) !== null) {
         titles.push(match[1]);
     }
-
-    // Remove all title spans from body
     const body = cleaned.replace(/<span[^>]*data-type="title"[^>]*>.*?<\/span>/g, '').trim();
-
     return { body, titles };
 };
 
@@ -105,21 +101,26 @@ export default function BookPagesPage() {
     const columns = useMemo<ColumnDef<PageRow>[]>(
         () => [
             {
-                accessorKey: 'id',
-                cell: ({ row }) => (
-                    <span className="font-mono text-muted-foreground text-sm">{row.getValue('id')}</span>
-                ),
+                accessorKey: 'part',
+                cell: ({ row }) => {
+                    const value = row.getValue('part');
+                    return value ? (
+                        <span className="font-mono text-sm">{String(value)}</span>
+                    ) : (
+                        <span className="text-muted-foreground">—</span>
+                    );
+                },
                 header: ({ column }) => (
                     <Button
                         variant="ghost"
                         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
                         className="-ml-4"
                     >
-                        ID
+                        Volume
                         <ArrowUpDown className="ml-2 h-4 w-4" />
                     </Button>
                 ),
-                size: 80,
+                size: 100,
             },
             {
                 accessorKey: 'pageNumber',
@@ -138,28 +139,6 @@ export default function BookPagesPage() {
                         className="-ml-4"
                     >
                         Page
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                    </Button>
-                ),
-                size: 100,
-            },
-            {
-                accessorKey: 'part',
-                cell: ({ row }) => {
-                    const value = row.getValue('part');
-                    return value ? (
-                        <span className="font-mono text-sm">{String(value)}</span>
-                    ) : (
-                        <span className="text-muted-foreground">—</span>
-                    );
-                },
-                header: ({ column }) => (
-                    <Button
-                        variant="ghost"
-                        onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-                        className="-ml-4"
-                    >
-                        Part
                         <ArrowUpDown className="ml-2 h-4 w-4" />
                     </Button>
                 ),
@@ -255,8 +234,9 @@ export default function BookPagesPage() {
                         { label: 'Pages' },
                     ]}
                 />
-                <div className="flex flex-1 flex-col gap-6 p-6">
-                    <p className="text-muted-foreground">Loading pages...</p>
+
+                <div className="flex min-h-screen items-center justify-center">
+                    <CircularBarsSpinnerLoader />
                 </div>
             </>
         );

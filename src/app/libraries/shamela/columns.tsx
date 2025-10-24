@@ -1,6 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import { ArrowUpDown } from 'lucide-react';
 import Link from 'next/link';
+import { Badge } from '@/components/cuicui/badge';
 import { Button } from '@/components/ui/button';
 
 export type BookRow = {
@@ -142,11 +143,8 @@ export const createColumns = (hasTransliterations: boolean): ColumnDef<BookRow>[
     columns.push({
         accessorKey: 'category',
         cell: ({ row }) => (
-            <Link
-                href={`/libraries/shamela/category/${row.original.categoryId}`}
-                className="block text-right hover:underline"
-            >
-                {row.getValue('category')}
+            <Link href={`/libraries/shamela/category/${row.original.categoryId}`} className="block text-right">
+                <Badge>{row.getValue('category')}</Badge>
             </Link>
         ),
         header: ({ column }) => (
@@ -167,11 +165,8 @@ export const createColumns = (hasTransliterations: boolean): ColumnDef<BookRow>[
             cell: ({ row }) => {
                 const value = row.getValue('categoryTransliteration');
                 return value ? (
-                    <Link
-                        href={`/libraries/shamela/category/${row.original.categoryId}`}
-                        className="text-muted-foreground hover:underline"
-                    >
-                        {String(value)}
+                    <Link href={`/libraries/shamela/category/${row.original.categoryId}`}>
+                        <Badge>{String(value)}</Badge>
                     </Link>
                 ) : (
                     <span className="text-muted-foreground">—</span>
