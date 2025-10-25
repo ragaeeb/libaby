@@ -1,31 +1,25 @@
-import { existsSync } from 'node:fs';
-import { readdir, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { Buffer } from 'node:buffer';
 import { BookOpen, Database, Download, HardDrive, Library } from 'lucide-react';
 import HoverCard from '@/components/cuicui/hover-effect-card';
 import { PageHeader } from '@/components/page-header';
 import { AnimatedCounter } from '@/components/ui/animated-counter';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getConfig, getDownloadedBooks, getMasterData } from '@/lib/data';
+import { getServerStorage } from '@/lib/storage/server';
 
-const getDataDir = () => process.env.DATA_DIR || join(process.cwd(), 'data');
+const storage = getServerStorage();
 
-const getDirectorySize = async (dirPath: string): Promise<number> => {
-    if (!existsSync(dirPath)) {
-        return 0;
-    }
-
+const getPrefixSize = async (prefix: string): Promise<number> => {
+    const keys = await storage.getKeys(prefix);
     let totalSize = 0;
-    const files = await readdir(dirPath);
 
-    for (const file of files) {
-        const filePath = join(dirPath, file);
-        const stats = await stat(filePath);
+    for (const key of keys) {
+        const value = await storage.getItem(key);
 
-        if (stats.isDirectory()) {
-            totalSize += await getDirectorySize(filePath);
-        } else {
-            totalSize += stats.size;
+        if (typeof value === 'string') {
+            totalSize += Buffer.byteLength(value, 'utf-8');
+        } else if (value instanceof Uint8Array) {
+            totalSize += value.byteLength;
         }
     }
 
@@ -43,25 +37,24 @@ const formatBytes = (bytes: number): string => {
 };
 
 const getLargestBookFile = async (library: string): Promise<{ name: string; size: number } | null> => {
-    const booksDir = join(getDataDir(), 'libraries', library, 'books');
+    const keys = (await storage.getKeys(`libraries/${library}/books`)).filter(
+        (key) => key.endsWith('.json') && !key.endsWith('.metadata.json'),
+    );
 
-    if (!existsSync(booksDir)) {
-        return null;
-    }
-
-    const files = await readdir(booksDir);
     let largestFile: { name: string; size: number } | null = null;
 
-    for (const file of files) {
-        if (!file.endsWith('.json')) {
+    for (const key of keys) {
+        const value = await storage.getItem(key);
+
+        if (typeof value !== 'string') {
             continue;
         }
 
-        const filePath = join(booksDir, file);
-        const stats = await stat(filePath);
+        const size = Buffer.byteLength(value, 'utf-8');
+        const name = key.split('/').pop()?.replace('.json', '') ?? key;
 
-        if (!largestFile || stats.size > largestFile.size) {
-            largestFile = { name: file.replace('.json', ''), size: stats.size };
+        if (!largestFile || size > largestFile.size) {
+            largestFile = { name, size };
         }
     }
 
@@ -94,8 +87,7 @@ const getLibraryStats = async () => {
             largestBook = { ...largest, library };
         }
 
-        const libDir = join(getDataDir(), 'libraries', library);
-        const dirSize = await getDirectorySize(libDir);
+        const dirSize = await getPrefixSize(`libraries/${library}`);
         totalStorageSize += dirSize;
     }
 
