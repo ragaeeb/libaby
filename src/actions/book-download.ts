@@ -1,11 +1,8 @@
 'use server';
 
-import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { getBookMetadata, downloadBook as shamelaDownloadBook } from '@/lib/libraries/shamela4';
-
-const getDataDir = () => process.env.DATA_DIR || join(process.cwd(), 'data');
+import { getBook, getBookMetadata } from '@/lib/libraries/shamela4';
+import { getServerStorage } from '@/lib/storage/server';
+import { saveDownloadedBook } from '@/lib/data';
 
 export type Page = { id: number; content: string; page?: number; part?: string; number?: string };
 
@@ -13,44 +10,41 @@ export type Title = { id: number; content: string; page: number; parent?: number
 
 export type BookData = { pages: Page[]; titles: Title[] };
 
-export async function downloadBook(library: string, bookId: string): Promise<void> {
-    const booksDir = join(getDataDir(), 'libraries', library, 'books');
+const storage = getServerStorage();
 
-    if (!existsSync(booksDir)) {
-        await mkdir(booksDir, { recursive: true });
+export async function downloadBook(library: string, bookId: string): Promise<BookData> {
+    const bookPath = `libraries/${library}/books/${bookId}.json`;
+
+    if (await storage.hasItem(bookPath)) {
+        const cached = await storage.getItem(bookPath);
+        if (typeof cached === 'string') {
+            return JSON.parse(cached) as BookData;
+        }
     }
 
-    const bookPath = join(booksDir, `${bookId}.json`);
+    const [metadata, bookData] = await Promise.all([getBookMetadata(Number(bookId)), getBook(Number(bookId))]);
 
-    // Skip if already downloaded
-    if (existsSync(bookPath)) {
-        return;
+    const payload = JSON.stringify(bookData);
+    await storage.setItem(bookPath, payload);
+
+    await saveDownloadedBook({ downloadedAt: new Date().toISOString(), id: bookId, library });
+
+    if (metadata) {
+        await storage.setItem(`libraries/${library}/books/${bookId}.metadata.json`, JSON.stringify(metadata));
     }
 
-    // Download from Shamela
-    const metadata = await getBookMetadata(Number(bookId));
-
-    await shamelaDownloadBook(Number(bookId), { bookMetadata: metadata, outputFile: { path: bookPath } });
-
-    // Mark as downloaded
-    const downloadedPath = join(getDataDir(), 'downloaded.json');
-    const downloaded = existsSync(downloadedPath) ? JSON.parse(await readFile(downloadedPath, 'utf-8')) : [];
-
-    if (!downloaded.find((b: any) => b.id === bookId && b.library === library)) {
-        downloaded.push({ downloadedAt: new Date().toISOString(), id: bookId, library });
-        await writeFile(downloadedPath, JSON.stringify(downloaded, null, 2));
-    }
+    return bookData;
 }
 
 export async function getBookContent(library: string, bookId: string): Promise<BookData | null> {
-    const bookPath = join(getDataDir(), 'libraries', library, 'books', `${bookId}.json`);
+    const bookPath = `libraries/${library}/books/${bookId}.json`;
+    const content = await storage.getItem(bookPath);
 
-    if (!existsSync(bookPath)) {
+    if (typeof content !== 'string') {
         return null;
     }
 
-    const content = await readFile(bookPath, 'utf-8');
-    return JSON.parse(content);
+    return JSON.parse(content) as BookData;
 }
 
 export async function getBookPage(library: string, bookId: string, pageId: string): Promise<Page | null> {

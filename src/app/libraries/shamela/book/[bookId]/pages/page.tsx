@@ -14,7 +14,8 @@ import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { type Page, useBookPagesStore } from '@/stores/useBookPagesStore';
+import { getBrowserStorage } from '@/lib/storage/browser';
+import { type BookData, type Page, useBookPagesStore } from '@/stores/useBookPagesStore';
 
 type PageRow = { content: string; id: number; pageNumber?: string; part?: string };
 
@@ -54,10 +55,17 @@ export default function BookPagesPage() {
                 return;
             }
 
-            const [content, details] = await Promise.all([
-                getBookContent('shamela', bookId),
-                getBookDetails('shamela', bookId),
-            ]);
+            let content: BookData | null = null;
+            const storage = await getBrowserStorage();
+            const stored = await storage.getItem(`libraries/shamela/books/${bookId}.json`);
+
+            if (typeof stored === 'string') {
+                content = JSON.parse(stored) as BookData;
+            } else {
+                content = await getBookContent('shamela', bookId);
+            }
+
+            const details = await getBookDetails('shamela', bookId);
 
             if (content) {
                 setBookData(bookId, content);

@@ -1,12 +1,10 @@
 'use server';
 
-import { existsSync } from 'node:fs';
-import { readdir, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { MeiliSearch } from 'meilisearch';
 import { getMasterData } from '@/lib/data';
+import { getServerStorage } from '@/lib/storage/server';
 
-const getDataDir = () => process.env.DATA_DIR || join(process.cwd(), 'data');
+const storage = getServerStorage();
 
 const getClient = () =>
     new MeiliSearch({
@@ -55,14 +53,9 @@ export const indexBooks = async (library: string) => {
         sortableAttributes: ['pageId'],
     });
 
-    const booksDir = join(getDataDir(), 'libraries', library, 'books');
-
-    if (!existsSync(booksDir)) {
-        return;
-    }
-
-    const files = await readdir(booksDir);
-    const jsonFiles = files.filter((f) => f.endsWith('.json'));
+    const bookKeys = (await storage.getKeys(`libraries/${library}/books`)).filter(
+        (key) => key.endsWith('.json') && !key.endsWith('.metadata.json'),
+    );
 
     const masterData = await getMasterData(library);
     if (!masterData) {
@@ -71,9 +64,12 @@ export const indexBooks = async (library: string) => {
 
     const authorMap = new Map(masterData.master.authors.map((a) => [String(a.id), a.name]));
 
-    for (const file of jsonFiles) {
-        const bookId = file.replace('.json', '');
-        const filePath = join(booksDir, file);
+    for (const key of bookKeys) {
+        const bookId = key.split('/').pop()?.replace('.json', '');
+
+        if (!bookId) {
+            continue;
+        }
 
         const book = masterData.master.books.find((b) => String(b.id) === bookId);
 
@@ -83,10 +79,13 @@ export const indexBooks = async (library: string) => {
 
         let bookData: any;
         try {
-            const content = await readFile(filePath, 'utf-8');
+            const content = await storage.getItem(key);
+            if (typeof content !== 'string') {
+                continue;
+            }
             bookData = JSON.parse(content);
         } catch (e) {
-            console.warn(`Skipping ${filePath}: ${e}`);
+            console.warn(`Skipping ${key}: ${e}`);
             continue;
         }
 

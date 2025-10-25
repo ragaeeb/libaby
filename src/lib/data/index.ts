@@ -1,6 +1,4 @@
-import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { getServerStorage } from '@/lib/storage/server';
 
 type MasterData = {
     version: number;
@@ -25,7 +23,22 @@ type DownloadedBook = { downloadedAt: string; id: string; library: string };
 const cache = new Map<string, CachedLibrary>();
 const CACHE_TTL = 1000 * 60 * 60;
 
-const getDataDir = () => process.env.DATA_DIR || join(process.cwd(), 'data');
+const storage = getServerStorage();
+
+const readJSON = async <T>(key: string): Promise<T | null> => {
+    const content = await storage.getItem(key);
+
+    if (typeof content !== 'string') {
+        return null;
+    }
+
+    return JSON.parse(content) as T;
+};
+
+const writeJSON = async (key: string, value: unknown) => {
+    const payload = JSON.stringify(value, null, 2);
+    await storage.setItem(key, payload);
+};
 
 export const getMasterData = async (library: string): Promise<CachedLibrary | null> => {
     const cached = cache.get(library);
@@ -34,21 +47,23 @@ export const getMasterData = async (library: string): Promise<CachedLibrary | nu
         return cached;
     }
 
-    const masterPath = join(getDataDir(), 'libraries', library, 'master.json');
+    const masterPath = `libraries/${library}/master.json`;
 
-    if (!existsSync(masterPath)) {
+    if (!(await storage.hasItem(masterPath))) {
         return null;
     }
 
-    const masterContent = await readFile(masterPath, 'utf-8');
-    const master: MasterData = JSON.parse(masterContent);
+    const master = await readJSON<MasterData>(masterPath);
 
-    const translationsPath = join(getDataDir(), 'libraries', library, 'master.en.json');
+    if (!master) {
+        return null;
+    }
+
+    const translationsPath = `libraries/${library}/master.en.json`;
     let translations: TranslationsData | null = null;
 
-    if (existsSync(translationsPath)) {
-        const translationsContent = await readFile(translationsPath, 'utf-8');
-        translations = JSON.parse(translationsContent);
+    if (await storage.hasItem(translationsPath)) {
+        translations = await readJSON<TranslationsData>(translationsPath);
     }
 
     const cachedLibrary: CachedLibrary = { loadedAt: Date.now(), master, translations };
@@ -67,31 +82,17 @@ export const clearCache = (library?: string) => {
 };
 
 export const getConfig = async (): Promise<LibraryConfig> => {
-    const configPath = join(getDataDir(), 'config.json');
-
-    if (!existsSync(configPath)) {
-        return {};
-    }
-
-    const content = await readFile(configPath, 'utf-8');
-    return JSON.parse(content);
+    const config = await readJSON<LibraryConfig>('config.json');
+    return config ?? {};
 };
 
 export const setConfig = async (config: LibraryConfig): Promise<void> => {
-    const configPath = join(getDataDir(), 'config.json');
-    await ensureDir(getDataDir());
-    await writeFile(configPath, JSON.stringify(config, null, 2));
+    await writeJSON('config.json', config);
 };
 
 export const getDownloadedBooks = async (): Promise<DownloadedBook[]> => {
-    const downloadedPath = join(getDataDir(), 'downloaded.json');
-
-    if (!existsSync(downloadedPath)) {
-        return [];
-    }
-
-    const content = await readFile(downloadedPath, 'utf-8');
-    return JSON.parse(content);
+    const downloaded = await readJSON<DownloadedBook[]>('downloaded.json');
+    return downloaded ?? [];
 };
 
 export const saveDownloadedBook = async (book: DownloadedBook): Promise<void> => {
@@ -100,14 +101,7 @@ export const saveDownloadedBook = async (book: DownloadedBook): Promise<void> =>
 
     if (!existing) {
         downloaded.push(book);
-        const downloadedPath = join(getDataDir(), 'downloaded.json');
-        await writeFile(downloadedPath, JSON.stringify(downloaded, null, 2));
-    }
-};
-
-const ensureDir = async (path: string) => {
-    if (!existsSync(path)) {
-        await mkdir(path, { recursive: true });
+        await writeJSON('downloaded.json', downloaded);
     }
 };
 

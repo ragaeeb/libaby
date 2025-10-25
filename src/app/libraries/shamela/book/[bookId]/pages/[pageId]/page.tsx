@@ -4,10 +4,11 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { getBookContent, getBookPage } from '@/actions/book-download';
+import { getBookContent } from '@/actions/book-download';
 import { getBookDetails } from '@/actions/books';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
+import { getBrowserStorage } from '@/lib/storage/browser';
 import { type Page, useBookPagesStore } from '@/stores/useBookPagesStore';
 
 const extractTitles = (content: string): { body: string; titles: string[] } => {
@@ -88,24 +89,23 @@ export default function SinglePageView() {
 
     useEffect(() => {
         const loadPage = async () => {
-            const bookData = getBookData(bookId);
+            let bookData = getBookData(bookId);
 
             if (!bookData) {
-                const content = await getBookContent('shamela', bookId);
-                if (content) {
-                    setBookData(bookId, content);
-                    const currentPage = content.pages.find((p) => p.id === Number(pageId));
-                    setPage(currentPage || null);
-
-                    const currentIdx = content.pages.findIndex((p) => p.id === Number(pageId));
-                    if (currentIdx > 0) {
-                        setPrevPageId(content.pages[currentIdx - 1].id);
-                    }
-                    if (currentIdx < content.pages.length - 1) {
-                        setNextPageId(content.pages[currentIdx + 1].id);
-                    }
+                const storage = await getBrowserStorage();
+                const stored = await storage.getItem(`libraries/shamela/books/${bookId}.json`);
+                if (typeof stored === 'string') {
+                    bookData = JSON.parse(stored);
+                } else {
+                    bookData = await getBookContent('shamela', bookId);
                 }
-            } else {
+
+                if (bookData) {
+                    setBookData(bookId, bookData);
+                }
+            }
+
+            if (bookData) {
                 const currentPage = bookData.pages.find((p) => p.id === Number(pageId));
                 setPage(currentPage || null);
 

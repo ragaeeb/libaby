@@ -8,6 +8,8 @@ import { downloadBook } from '@/actions/book-download';
 import { getBookDetails } from '@/actions/books';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
+import { getBrowserStorage } from '@/lib/storage/browser';
+import { useBookPagesStore } from '@/stores/useBookPagesStore';
 import { useLibraryStore } from '@/stores/useLibraryStore';
 
 type BookDetails = {
@@ -31,6 +33,7 @@ type BookDetails = {
 export default function ShamelaBookPage() {
     const { bookId } = useParams<{ bookId: string }>();
     const { books } = useLibraryStore();
+    const { setBookData } = useBookPagesStore();
     const [book, setBook] = useState<BookDetails | null>(null);
     const [loading, setLoading] = useState(true);
     const [downloading, setDownloading] = useState(false);
@@ -68,7 +71,18 @@ export default function ShamelaBookPage() {
     const handleDownload = useCallback(async () => {
         setDownloading(true);
         try {
-            await downloadBook('shamela', bookId);
+            const data = await downloadBook('shamela', bookId);
+            const storage = await getBrowserStorage();
+            await storage.setItem(`libraries/shamela/books/${bookId}.json`, JSON.stringify(data));
+            const downloadedRaw = await storage.getItem('downloaded.json');
+            const downloaded: Array<{ downloadedAt: string; id: string; library: string }> = downloadedRaw
+                ? JSON.parse(downloadedRaw)
+                : [];
+            if (!downloaded.find((item) => item.id === bookId && item.library === 'shamela')) {
+                downloaded.push({ downloadedAt: new Date().toISOString(), id: bookId, library: 'shamela' });
+                await storage.setItem('downloaded.json', JSON.stringify(downloaded));
+            }
+            setBookData(bookId, data);
             const updated = await getBookDetails('shamela', bookId);
             setBook(updated);
         } catch (error) {
@@ -76,7 +90,7 @@ export default function ShamelaBookPage() {
             alert('Download failed. Please try again.');
         }
         setDownloading(false);
-    }, [bookId]);
+    }, [bookId, setBookData]);
 
     if (loading) {
         return (
