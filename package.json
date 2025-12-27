@@ -61,5 +61,5 @@
         "verify": "bun run scripts/setup.ts --verify"
     },
     "type": "module",
-    "version": "1.3.0"
+    "version": "1.3.1"
 }

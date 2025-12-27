@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/ragaeeb/libaby/compare/v1.3.0...v1.3.1) (2025-12-27)
+
+
+### Bug Fixes
+
+* **security:** Upgrade dependencies ([84b69ad](https://github.com/ragaeeb/libaby/commit/84b69ad357a578522d2505180219a13846e221da))
+
 # [1.3.0](https://github.com/ragaeeb/libaby/compare/v1.2.0...v1.3.0) (2025-10-24)
 
 
