@@ -11,7 +11,7 @@ import {
     getMaster,
     type MasterData,
 } from 'shamela';
-import { compressJson } from '@/lib/io';
+import { compressJsonAsync } from '@/lib/io';
 
 /**
  * Returns the current Unix timestamp in seconds (not milliseconds).
@@ -65,6 +65,9 @@ export const downloadAll = async () => {
 
     console.log('Processing', books.length, 'books');
 
+    const activeCompressions = new Set<Promise<void>>();
+    const CONCURRENCY_LIMIT = 5;
+
     for (let i = 0; i < books.length; i++) {
         const book = books[i];
         const bookFile = Bun.file(
@@ -80,7 +83,6 @@ export const downloadAll = async () => {
             await saveBook(bookFile, book);
         }
 
-        // TODO: Remove this next block
         const bookData: DenormalizedBookData = await bookFile.json();
 
         if (!bookData.id) {
@@ -96,9 +98,28 @@ export const downloadAll = async () => {
         );
 
         if (!(await archiveFile.exists())) {
-            console.log('Compressing...', book.id);
-            await archiveFile.write(compressJson(bookData));
+            const compressTask: Promise<void> = (async () => {
+                console.log('Compressing...', book.id);
+                const bookData: DenormalizedBookData = await bookFile.json();
+
+                if (!bookData.id) {
+                    Object.assign(bookData, book);
+                }
+
+                await archiveFile.write(await compressJsonAsync(bookData));
+            })().finally(() => activeCompressions.delete(compressTask));
+
+            activeCompressions.add(compressTask);
+
+            if (activeCompressions.size >= CONCURRENCY_LIMIT) {
+                await Promise.race(activeCompressions);
+            }
         }
+    }
+
+    if (activeCompressions.size > 0) {
+        console.log(`Waiting for ${activeCompressions.size} remaining compressions...`);
+        await Promise.all(activeCompressions);
     }
 };
 

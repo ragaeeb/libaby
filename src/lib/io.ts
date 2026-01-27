@@ -1,4 +1,4 @@
-import { brotliCompressSync, constants as zc } from 'node:zlib';
+import { brotliCompress, brotliCompressSync, constants as zc } from 'node:zlib';
 
 type CompressOpts = {
     /** Sort object keys recursively before stringify for slightly better compression (default: true). */
@@ -52,4 +52,43 @@ export const compressJson = (value: unknown, opts: CompressOpts = {}) => {
     const json = JSON.stringify(canonical ? canonicalize(value) : value);
 
     return compressString(json);
+};
+/**
+ * Compresses a UTF-8 string using Brotli with parameters tuned for textual data (Asynchronously).
+ *
+ * @param value - The string to compress.
+ * @returns A promise that resolves to a Brotli compressed buffer.
+ */
+export const compressStringAsync = (value: string): Promise<Buffer> => {
+    const input = Buffer.from(value, 'utf8');
+    const params: Record<number, number> = {
+        [zc.BROTLI_PARAM_QUALITY]: 11,
+        [zc.BROTLI_PARAM_MODE]: zc.BROTLI_MODE_TEXT,
+        [zc.BROTLI_PARAM_LGWIN]: 24,
+        [zc.BROTLI_PARAM_SIZE_HINT]: input.length,
+    };
+
+    return new Promise((resolve, reject) => {
+        brotliCompress(input, { params }, (error, result) => {
+            if (error) {
+                reject(error);
+            } else {
+                resolve(result);
+            }
+        });
+    });
+};
+
+/**
+ * Serializes a value to JSON and compresses it using Brotli asynchronously.
+ *
+ * @param value - The JSON-compatible value to compress.
+ * @param opts - Compression options controlling canonicalization.
+ * @returns A promise that resolves to the compressed JSON buffer.
+ */
+export const compressJsonAsync = async (value: unknown, opts: CompressOpts = {}) => {
+    const { canonical = true } = opts;
+    const json = JSON.stringify(canonical ? canonicalize(value) : value);
+
+    return compressStringAsync(json);
 };
