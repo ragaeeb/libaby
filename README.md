@@ -273,6 +273,31 @@ docker-compose down -v
 **Check Meilisearch health:**
 Visit `http://localhost:7700/health`
 
+## Dataset Generation & Distribution
+
+If you need to generate a complete, compressed book dataset for distribution (e.g., to HuggingFace), use the specialized download script.
+
+### 1. Download & Compress All
+This script downloads every book in the master catalog, denormalizes the data, and compresses each file using Brotli (Quality 11) in parallel.
+
+```bash
+bun run scripts/downloadAll.ts
+```
+
+- **Output**: `data/libraries/shamela/books/dataset/*.json.br`
+- **Concurrency**: Defaults to 5 parallel compression tasks.
+- **Backoff**: includes exponential backoff to handle Shamela rate limits.
+
+### 2. Upload to HuggingFace
+Once generated, you can upload the large folder of compressed files directly to the HuggingFace Hub using their CLI:
+
+```bash
+# Replace 'account/datasetName' with your target repo
+hf upload-large-folder account/datasetName ./data/libraries/shamela/books/dataset --repo-type=dataset
+```
+
+---
+
 ## Development
 
 ### Code Quality
