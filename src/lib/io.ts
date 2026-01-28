@@ -1,4 +1,4 @@
-import { brotliCompress, brotliCompressSync, constants as zc } from 'node:zlib';
+import { brotliCompress, brotliCompressSync, brotliDecompress, constants as zc } from 'node:zlib';
 
 type CompressOpts = {
     /** Sort object keys recursively before stringify for slightly better compression (default: true). */
@@ -91,4 +91,32 @@ export const compressJsonAsync = async (value: unknown, opts: CompressOpts = {})
     const json = JSON.stringify(canonical ? canonicalize(value) : value);
 
     return compressStringAsync(json);
+};
+/**
+ * Decompresses a Brotli-compressed buffer back into a UTF-8 string.
+ *
+ * @param buffer - The compressed buffer to decompress.
+ * @returns A promise that resolves to the decompressed string.
+ */
+export const decompressStringAsync = (buffer: Buffer | Uint8Array): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        brotliDecompress(buffer, (error, result) => {
+            if (error) {
+                reject(error);
+            } else {
+                resolve(result.toString('utf8'));
+            }
+        });
+    });
+};
+
+/**
+ * Decompresses a Brotli-compressed buffer and parses it as JSON.
+ *
+ * @param buffer - The compressed buffer to decompress.
+ * @returns A promise that resolves to the parsed JSON value.
+ */
+export const decompressJsonAsync = async <T = unknown>(buffer: Buffer | Uint8Array): Promise<T> => {
+    const json = await decompressStringAsync(buffer);
+    return JSON.parse(json);
 };
