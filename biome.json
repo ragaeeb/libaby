@@ -1,82 +1,84 @@
 {
-    "$schema": "https://biomejs.dev/schemas/2.3.0/schema.json",
-    "assist": {
-        "actions": {
-            "source": {
-                "organizeImports": "on",
-                "useSortedKeys": {
-                    "level": "on",
-                    "options": { "sortOrder": "natural" }
-                }
-            }
+  "$schema": "https://biomejs.dev/schemas/latest/schema.json",
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on",
+        "useSortedKeys": {
+          "level": "on",
+          "options": {
+            "sortOrder": "natural"
+          }
         }
-    },
-    "files": {
-        "ignoreUnknown": true,
-        "includes": ["**", "!node_modules", "!.next", "!dist", "!build"]
-    },
-    "formatter": {
-        "enabled": true,
-        "indentStyle": "space",
-        "indentWidth": 4,
-        "lineWidth": 120
-    },
-    "javascript": {
-        "formatter": {
-            "arrowParentheses": "always",
-            "bracketSameLine": false,
-            "bracketSpacing": true,
-            "expand": "never",
-            "quoteStyle": "single",
-            "semicolons": "always",
-            "trailingCommas": "all"
-        }
-    },
-    "linter": {
-        "domains": {
-            "next": "recommended",
-            "react": "recommended"
-        },
-        "enabled": true,
-        "rules": {
-            "complexity": {
-                "noExcessiveCognitiveComplexity": "warn",
-                "useWhile": "error"
-            },
-            "nursery": {
-                "useSortedClasses": {
-                    "fix": "safe",
-                    "level": "error",
-                    "options": {
-                        "attributes": ["className"],
-                        "functions": ["cn", "cva", "tw", "clsx"]
-                    }
-                }
-            },
-            "recommended": true,
-            "style": {
-                "noNonNullAssertion": "off",
-                "useBlockStatements": {
-                    "fix": "safe",
-                    "level": "error",
-                    "options": {}
-                },
-                "useTemplate": {
-                    "fix": "safe",
-                    "level": "warn",
-                    "options": {}
-                }
-            },
-            "suspicious": {
-                "noExplicitAny": "off",
-                "noUnknownAtRules": "off",
-                "useIterableCallbackReturn": "off"
-            }
-        }
-    },
-    "vcs": {
-        "clientKind": "git",
-        "enabled": true,
-        "useIgnoreFile": true
+      }
     }
+  },
+  "css": {
+    "parser": {
+      "cssModules": true,
+      "tailwindDirectives": true
+    }
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "src/**",
+      "*.ts",
+      "*.tsx",
+      "*.js",
+      "*.json",
+      "!!**/node_modules",
+      "!!**/dist",
+      "!!**/src-tauri/target",
+      "!!**/src-tauri/gen",
+      "!!**/gen"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all"
+    }
+  },
+  "json": {
+    "formatter": {
+      "enabled": true
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "complexity": {
+        "noExcessiveCognitiveComplexity": "off"
+      },
+      "nursery": {
+        "useSortedClasses": "off"
+      },
+      "recommended": true,
+      "style": {
+        "useBlockStatements": {
+          "fix": "safe",
+          "level": "off",
+          "options": {}
+        },
+        "useImportType": "error",
+        "useTemplate": "off"
+      },
+      "suspicious": {
+        "noExplicitAny": "error"
+      }
+    }
+  },
+  "vcs": {
+    "clientKind": "git",
+    "enabled": true,
+    "useIgnoreFile": true
+  }
 }

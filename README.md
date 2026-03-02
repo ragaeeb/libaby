@@ -1,7 +1,6 @@
 # Libaby 📚
 
 [![wakatime](https://wakatime.com/badge/user/a0b906ce-b8e7-4463-8bce-383238df6d4b/project/8cad7ba0-b573-456e-b621-2baacba0a781.svg)](https://wakatime.com/badge/user/a0b906ce-b8e7-4463-8bce-383238df6d4b/project/8cad7ba0-b573-456e-b621-2baacba0a781)
-[![Vercel Deploy](https://deploy-badge.vercel.app/vercel/libaby)](https://libaby.vercel.app)
 [![typescript](https://badgen.net/badge/icon/typescript?icon=typescript&label&color=blue)](https://www.typescriptlang.org)
 [![Node.js CI](https://github.com/ragaeeb/libaby/actions/workflows/build.yml/badge.svg)](https://github.com/ragaeeb/libaby/actions/workflows/build.yml)
 ![Bun](https://img.shields.io/badge/Bun-%23000000.svg?style=for-the-badge&logo=bun&logoColor=white)
