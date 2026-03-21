@@ -2,6 +2,7 @@ import {
   BookOpen,
   ChevronRight,
   ChevronsUpDown,
+  FileText,
   LayoutDashboard,
   LogOut,
   Settings,
@@ -40,6 +41,7 @@ import {
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSub,
@@ -49,7 +51,8 @@ import {
   SidebarRail,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { loadMasterBooks } from "@/lib/huggingface";
+import { listDownloadedBookIds, loadCachedBook, loadMasterBooks } from "@/lib/huggingface";
+import { buildShamelaTitleTree, sanitizeShamelaText, type ShamelaTitleNode } from "@/lib/shamela-content";
 import { cn } from "@/lib/utils";
 import { BookDetailPage } from "@/pages/BookDetailPage";
 import { BookPagesPage } from "@/pages/BookPagesPage";
@@ -74,7 +77,12 @@ type NavItem = {
   label: string;
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   pageId: SimplePageId;
-  children?: NavItem[];
+  children?: BookNavItem[];
+};
+
+type BookNavItem = {
+  bookId: number;
+  label: string;
 };
 
 type NavGroup = {
@@ -106,16 +114,21 @@ const overviewGroup: NavGroup = {
   title: "Overview",
 };
 
-const shamelaGroup: NavGroup = {
-  defaultOpen: true,
-  items: [{ icon: BookOpen, label: "Books", pageId: "shamela-books" }],
-  title: "Shamela",
-};
-
 function isNavItemActive(itemPageId: string, route: Route): boolean {
   if (route.page === itemPageId) return true;
   if (itemPageId === "shamela-books" && route.page.startsWith("shamela-book")) return true;
   return false;
+}
+
+function getActiveBookId(route: Route): number | null {
+  switch (route.page) {
+    case "shamela-book":
+    case "shamela-book-pages":
+    case "shamela-book-page":
+      return route.bookId;
+    default:
+      return null;
+  }
 }
 
 function getBreadcrumbs(
@@ -191,6 +204,8 @@ const NavMenuItem = ({
   const Icon = item.icon;
   const hasChildren = item.children && item.children.length > 0;
   const active = isNavItemActive(item.pageId, route);
+  const activeBookId = getActiveBookId(route);
+  const isChildActive = item.children?.some((child) => activeBookId === child.bookId) ?? false;
 
   if (!hasChildren) {
     return (
@@ -205,26 +220,234 @@ const NavMenuItem = ({
 
   return (
     <Collapsible defaultOpen className="group/collapsible" render={<SidebarMenuItem />}>
-      <CollapsibleTrigger render={<SidebarMenuButton isActive={active} />}>
+      <SidebarMenuButton isActive={active || isChildActive} onClick={() => onNavigate({ page: item.pageId })}>
         <Icon className="size-4" />
         <span>{item.label}</span>
-        <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+      </SidebarMenuButton>
+      <CollapsibleTrigger
+        render={<SidebarMenuAction aria-label={`Toggle ${item.label}`} showOnHover={false} />}
+      >
+        <ChevronRight className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <SidebarMenuSub>
           {item.children?.map((child) => (
-            <SidebarMenuSubItem key={child.label}>
+            <SidebarMenuSubItem key={child.bookId}>
               <SidebarMenuSubButton
-                isActive={isNavItemActive(child.pageId, route)}
-                onClick={() => onNavigate({ page: child.pageId })}
+                className="h-auto cursor-pointer items-start py-1.5"
+                isActive={activeBookId === child.bookId}
+                onClick={() => onNavigate({ bookId: child.bookId, page: "shamela-book" })}
               >
-                {child.label}
+                <FileText className="mt-0.5 size-4 shrink-0" />
+                <span className="min-w-0 whitespace-normal break-words text-right leading-5" dir="rtl">
+                  {child.label}
+                </span>
               </SidebarMenuSubButton>
             </SidebarMenuSubItem>
           ))}
         </SidebarMenuSub>
       </CollapsibleContent>
     </Collapsible>
+  );
+};
+
+function titleTreeHasActiveNode(nodes: ShamelaTitleNode[], pageId: number): boolean {
+  return nodes.some(
+    (node) => node.pageId === pageId || titleTreeHasActiveNode(node.children, pageId),
+  );
+}
+
+const DownloadedTitleMenuItem = ({
+  node,
+  bookId,
+  route,
+  onNavigate,
+}: {
+  node: ShamelaTitleNode;
+  bookId: number;
+  route: Route;
+  onNavigate: (r: Route) => void;
+}) => {
+  const hasChildren = node.children.length > 0;
+  const activePageId = route.page === "shamela-book-page" && route.bookId === bookId ? route.pageId : null;
+  const active = activePageId === node.pageId;
+  const descendantActive = activePageId !== null ? titleTreeHasActiveNode(node.children, activePageId) : false;
+  const [open, setOpen] = useState(active || descendantActive);
+
+  useEffect(() => {
+    if (active || descendantActive) {
+      setOpen(true);
+    }
+  }, [active, descendantActive]);
+
+  const label = sanitizeShamelaText(node.title.content) || `Section ${node.title.id}`;
+
+  const navigate = useCallback(() => {
+    if (node.pageId !== null) {
+      onNavigate({ bookId, page: "shamela-book-page", pageId: node.pageId });
+    }
+  }, [bookId, node.pageId, onNavigate]);
+
+  if (!hasChildren) {
+    return (
+      <SidebarMenuSubItem>
+        <SidebarMenuSubButton
+          className="h-auto cursor-pointer items-start py-1.5"
+          isActive={active}
+          onClick={node.pageId !== null ? navigate : undefined}
+        >
+          <FileText className="mt-0.5 size-4 shrink-0" />
+          <span className="min-w-0 whitespace-normal break-words text-right leading-5" dir="rtl">
+            {label}
+          </span>
+        </SidebarMenuSubButton>
+      </SidebarMenuSubItem>
+    );
+  }
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="group/collapsible" render={<SidebarMenuSubItem />}>
+      <SidebarMenuSubButton
+        className="h-auto cursor-pointer items-start py-1.5"
+        isActive={active}
+        onClick={node.pageId !== null ? navigate : undefined}
+      >
+        <FileText className="mt-0.5 size-4 shrink-0" />
+        <span className="min-w-0 whitespace-normal break-words text-right leading-5" dir="rtl">
+          {label}
+        </span>
+      </SidebarMenuSubButton>
+      <CollapsibleTrigger
+        render={<SidebarMenuAction aria-label={`Toggle ${label}`} showOnHover={false} />}
+      >
+        <ChevronRight className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <SidebarMenuSub>
+          {node.children.map((child) => (
+            <DownloadedTitleMenuItem
+              key={child.title.id}
+              node={child}
+              bookId={bookId}
+              route={route}
+              onNavigate={onNavigate}
+            />
+          ))}
+        </SidebarMenuSub>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+};
+
+const DownloadedBookMenuItem = ({
+  book,
+  route,
+  titleTree,
+  onNavigate,
+}: {
+  book: BookNavItem;
+  route: Route;
+  titleTree: ShamelaTitleNode[];
+  onNavigate: (r: Route) => void;
+}) => {
+  const activeBookId = getActiveBookId(route);
+  const active = activeBookId === book.bookId;
+  const [open, setOpen] = useState(active);
+
+  useEffect(() => {
+    if (active) {
+      setOpen(true);
+    }
+  }, [active]);
+
+  const navigateToBook = useCallback(() => {
+    onNavigate({ page: "shamela-book", bookId: book.bookId });
+  }, [book.bookId, onNavigate]);
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="group/collapsible" render={<SidebarMenuItem />}>
+      <SidebarMenuButton isActive={active} onClick={navigateToBook}>
+        <BookOpen className="size-4" />
+        <span className="min-w-0 truncate">{book.label}</span>
+      </SidebarMenuButton>
+      <CollapsibleTrigger
+        render={<SidebarMenuAction aria-label={`Toggle ${book.label}`} showOnHover={false} />}
+      >
+        <ChevronRight className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <SidebarMenuSub>
+          {titleTree.length > 0 ? (
+            titleTree.map((node) => (
+              <DownloadedTitleMenuItem
+                key={node.title.id}
+                node={node}
+                bookId={book.bookId}
+                route={route}
+                onNavigate={onNavigate}
+              />
+            ))
+          ) : (
+            <SidebarMenuSubItem>
+              <div className="px-2 py-1.5 text-right text-xs text-muted-foreground">
+                No titles available
+              </div>
+            </SidebarMenuSubItem>
+          )}
+        </SidebarMenuSub>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+};
+
+const ShamelaBooksSection = ({
+  route,
+  books,
+  titleTrees,
+  onNavigate,
+}: {
+  route: Route;
+  books: BookNavItem[];
+  titleTrees: Record<number, ShamelaTitleNode[]>;
+  onNavigate: (r: Route) => void;
+}) => {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel>Shamela</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          <Collapsible open={open} onOpenChange={setOpen} className="group/collapsible" render={<SidebarMenuItem />}>
+            <SidebarMenuButton
+              isActive={route.page.startsWith("shamela-book")}
+              onClick={() => onNavigate({ page: "shamela-books" })}
+            >
+              <BookOpen className="size-4" />
+              <span>Books</span>
+            </SidebarMenuButton>
+            <CollapsibleTrigger
+              render={<SidebarMenuAction aria-label="Toggle Books" showOnHover={false} />}
+            >
+              <ChevronRight className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <SidebarMenuSub>
+                {books.map((book) => (
+                  <DownloadedBookMenuItem
+                    key={book.bookId}
+                    book={book}
+                    route={route}
+                    titleTree={titleTrees[book.bookId] ?? []}
+                    onNavigate={onNavigate}
+                  />
+                ))}
+              </SidebarMenuSub>
+            </CollapsibleContent>
+          </Collapsible>
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
   );
 };
 
@@ -338,6 +561,10 @@ function PageContent({ route, onNavigate }: { route: Route; onNavigate: (r: Rout
 
 export function ApplicationShell1({ className }: { className?: string }) {
   const [currentRoute, setCurrentRoute] = useState<Route>({ page: "dashboard" });
+  const [downloadedBookIds, setDownloadedBookIds] = useState<number[]>([]);
+  const [downloadedBookTrees, setDownloadedBookTrees] = useState<Record<number, ShamelaTitleNode[]>>(
+    {},
+  );
   const shamelaVerified = useSettingsStore((s) => s.shamelaAccessVerified);
   const token = useSettingsStore((s) => s.huggingfaceToken);
   const dataset = useSettingsStore((s) => s.shamelaDataset);
@@ -358,6 +585,58 @@ export function ApplicationShell1({ className }: { className?: string }) {
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load books"));
   }, [shamelaVerified, token, dataset, books.length, booksLoading]);
 
+  useEffect(() => {
+    if (!shamelaVerified) {
+      setDownloadedBookIds([]);
+      setDownloadedBookTrees({});
+      return;
+    }
+
+    const loadDownloadedBooks = () => {
+      listDownloadedBookIds().then(setDownloadedBookIds);
+    };
+
+    loadDownloadedBooks();
+    window.addEventListener("shamela-book-downloaded", loadDownloadedBooks);
+
+    return () => {
+      window.removeEventListener("shamela-book-downloaded", loadDownloadedBooks);
+    };
+  }, [shamelaVerified]);
+
+  useEffect(() => {
+    if (!shamelaVerified || downloadedBookIds.length === 0) {
+      setDownloadedBookTrees({});
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadTitleTrees = async () => {
+      const entries = await Promise.all(
+        downloadedBookIds.map(async (bookId) => {
+          const cached = await loadCachedBook(bookId);
+          const tree = cached ? buildShamelaTitleTree(cached.titles, cached.pages) : [];
+          return [bookId, tree] as const;
+        }),
+      );
+
+      if (!cancelled) {
+        setDownloadedBookTrees(Object.fromEntries(entries));
+      }
+    };
+
+    loadTitleTrees().catch(() => {
+      if (!cancelled) {
+        setDownloadedBookTrees({});
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [downloadedBookIds, shamelaVerified]);
+
   const onNavigate = useCallback((r: Route) => setCurrentRoute(r), []);
 
   const getBookName = useCallback(
@@ -373,15 +652,27 @@ export function ApplicationShell1({ className }: { className?: string }) {
     [currentRoute, getBookName, onNavigate],
   );
 
-  const navGroups: NavGroup[] = shamelaVerified ? [overviewGroup, shamelaGroup] : [overviewGroup];
+  const downloadedBooksNav = useMemo(
+    () =>
+      downloadedBookIds.map((bookId) => {
+        const book = books.find((entry) => entry.id === bookId);
+        return {
+          bookId,
+          label: book?.name ?? `Book ${bookId}`,
+        };
+      }),
+    [books, downloadedBookIds],
+  );
+
+  const navGroups: NavGroup[] = [overviewGroup];
 
   return (
-    <SidebarProvider className={cn(className)}>
+    <SidebarProvider className={cn("h-screen overflow-hidden", className)}>
       <Sidebar>
         <SidebarHeader>
           <SidebarLogo />
         </SidebarHeader>
-        <SidebarContent className="overflow-hidden">
+        <SidebarContent>
           <ScrollArea className="min-h-0 flex-1">
             {navGroups.map((group) => (
               <NavGroupSection
@@ -391,6 +682,14 @@ export function ApplicationShell1({ className }: { className?: string }) {
                 onNavigate={onNavigate}
               />
             ))}
+            {shamelaVerified && (
+              <ShamelaBooksSection
+                route={currentRoute}
+                books={downloadedBooksNav}
+                titleTrees={downloadedBookTrees}
+                onNavigate={onNavigate}
+              />
+            )}
           </ScrollArea>
         </SidebarContent>
         <SidebarFooter>
@@ -398,25 +697,31 @@ export function ApplicationShell1({ className }: { className?: string }) {
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>
-      <SidebarInset>
+      <SidebarInset className="flex min-w-0 flex-col overflow-hidden">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator
             orientation="vertical"
             className="mr-2 hidden data-[orientation=vertical]:h-4 md:block"
           />
-          <Breadcrumb className="hidden md:block">
-            <BreadcrumbList>
+          <Breadcrumb className="hidden min-w-0 flex-1 md:block">
+            <BreadcrumbList className="flex-nowrap">
               {breadcrumbs.map((item, i) => (
                 <Fragment key={item.label}>
-                  {i > 0 && <BreadcrumbSeparator />}
-                  <BreadcrumbItem>
+                  {i > 0 && <BreadcrumbSeparator className="shrink-0" />}
+                  <BreadcrumbItem className="min-w-0">
                     {item.onClick ? (
-                      <BreadcrumbLink onClick={item.onClick} className="cursor-pointer">
+                      <BreadcrumbLink
+                        onClick={item.onClick}
+                        className="block max-w-[180px] cursor-pointer truncate"
+                        dir="rtl"
+                      >
                         {item.label}
                       </BreadcrumbLink>
                     ) : (
-                      <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                      <BreadcrumbPage className="block max-w-[200px] truncate" dir="rtl">
+                        {item.label}
+                      </BreadcrumbPage>
                     )}
                   </BreadcrumbItem>
                 </Fragment>
@@ -424,7 +729,9 @@ export function ApplicationShell1({ className }: { className?: string }) {
             </BreadcrumbList>
           </Breadcrumb>
         </header>
-        <PageContent route={currentRoute} onNavigate={onNavigate} />
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <PageContent route={currentRoute} onNavigate={onNavigate} />
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );

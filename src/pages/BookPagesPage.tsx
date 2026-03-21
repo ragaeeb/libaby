@@ -7,8 +7,9 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowUpDown, Loader2 } from "lucide-react";
+import { ArrowUpDown, Loader2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { PageLayout } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { downloadBookData, loadCachedBook } from "@/lib/huggingface";
+import { ShamelaContent, getShamelaSearchText } from "@/lib/shamela-content";
 import { useBookContentStore } from "@/stores/useBookContentStore";
 import { useSettingsStore } from "@/stores/useSettingsStore";
 import type { Page } from "@/types/books";
@@ -30,17 +32,6 @@ type PageRow = {
   content: string;
   pageNumber?: string;
   part?: string;
-};
-
-const extractTitles = (content: string): { body: string; titles: string[] } => {
-  const cleaned = content.replace(/\r/g, "\n");
-  const titles: string[] = [];
-  const titleRegex = /<span[^>]*data-type="title"[^>]*>\[([^\]]+)\]\s*\[?<\/span>/g;
-  for (const match of cleaned.matchAll(titleRegex)) {
-    titles.push(match[1]);
-  }
-  const body = cleaned.replace(/<span[^>]*data-type="title"[^>]*>.*?<\/span>/g, "").trim();
-  return { body, titles };
 };
 
 function toPageRow(p: Page): PageRow {
@@ -104,7 +95,7 @@ export function BookPagesPage({
     if (!searchQuery.trim()) return pages;
     const terms = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
     return pages.filter((p) =>
-      terms.every((t) => p.content.toLowerCase().includes(t)),
+      terms.every((t) => getShamelaSearchText(p.content).includes(t)),
     );
   }, [pages, searchQuery]);
 
@@ -113,62 +104,58 @@ export function BookPagesPage({
       {
         accessorKey: "part",
         header: ({ column }) => (
-          <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="-ml-4">
-            Volume <ArrowUpDown className="ml-2 h-4 w-4" />
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            className="-ml-3 h-8 px-2"
+          >
+            Volume <ArrowUpDown className="ml-1.5 size-3.5" />
           </Button>
         ),
         cell: ({ row }) => {
           const v = row.getValue("part");
-          return v ? <span className="font-mono text-sm">{String(v)}</span> : <span className="text-muted-foreground">—</span>;
+          return v ? (
+            <span className="font-mono text-sm tabular-nums">{String(v)}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          );
         },
-        size: 100,
       },
       {
         accessorKey: "pageNumber",
         header: ({ column }) => (
-          <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="-ml-4">
-            Page <ArrowUpDown className="ml-2 h-4 w-4" />
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            className="-ml-3 h-8 px-2"
+          >
+            Page <ArrowUpDown className="ml-1.5 size-3.5" />
           </Button>
         ),
         cell: ({ row }) => {
           const v = row.getValue("pageNumber");
-          return v ? <span className="font-mono text-sm">{String(v)}</span> : <span className="text-muted-foreground">—</span>;
+          return v ? (
+            <span className="font-mono text-sm tabular-nums">{String(v)}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          );
         },
-        size: 100,
       },
       {
         accessorKey: "content",
-        header: () => <div className="text-right">المحتوى</div>,
+        header: () => (
+          <div className="text-right text-sm font-medium text-foreground">المحتوى</div>
+        ),
         cell: ({ row }) => {
           const content = String(row.getValue("content") || "");
-          if (!content) return <span className="text-muted-foreground">No content</span>;
-
-          const mainContent = content.split("_________")[0];
-          const { body, titles } = extractTitles(mainContent);
-          const lines = body.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
-          const previewLines = lines.slice(0, 5);
+          if (!content) return <span className="text-muted-foreground text-sm">No content</span>;
 
           return (
-            <div className="space-y-2 py-2">
-              {titles.length > 0 && (
-                <div className="space-y-1">
-                  {titles.slice(0, 2).map((title) => (
-                    <div key={title} className="rounded bg-primary/10 px-3 py-1.5 text-right font-semibold text-sm">
-                      <span dir="rtl">{title}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="space-y-1 text-right text-sm leading-relaxed" dir="rtl">
-                {previewLines.map((line) => (
-                  <div key={line} className="break-words">{line}</div>
-                ))}
-                {lines.length > 5 && <div className="text-muted-foreground">...</div>}
-              </div>
+            <div className="whitespace-normal py-1.5">
+              <ShamelaContent content={content} compact previewBlocks={4} showFootnotes={false} />
             </div>
           );
         },
-        meta: { className: "whitespace-normal" },
       },
     ],
     [],
@@ -182,13 +169,14 @@ export function BookPagesPage({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    initialState: { pagination: { pageSize: 20 } },
   });
 
   if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center gap-3 p-6">
-        <Loader2 className="size-8 animate-spin text-primary" />
-        <p className="text-muted-foreground">Loading book content...</p>
+        <Loader2 className="size-6 animate-spin text-primary" />
+        <p className="text-muted-foreground text-sm">Loading book content…</p>
       </div>
     );
   }
@@ -196,47 +184,62 @@ export function BookPagesPage({
   if (error) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
-        <p className="text-destructive">{error}</p>
-        <Button variant="outline" onClick={() => useBookContentStore.getState().reset()}>
+        <p className="text-sm text-destructive">{error}</p>
+        <Button variant="outline" size="sm" onClick={() => useBookContentStore.getState().reset()}>
           Retry
         </Button>
       </div>
     );
   }
 
-  return (
-    <div className="flex flex-1 flex-col gap-6 p-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="space-y-1">
-          <h1 className="font-bold text-3xl tracking-tight">Book Pages</h1>
-          <p className="text-muted-foreground">
-            {filteredPages.length} page{filteredPages.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Input
-            dir="rtl"
-            placeholder="ابحث في الكتاب..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="min-w-[300px]"
-          />
-          {searchQuery.trim() && (
-            <Button variant="outline" onClick={() => setSearchQuery("")}>
-              Clear
-            </Button>
-          )}
-        </div>
+  const searchActions = (
+    <div className="flex w-full items-center gap-2 sm:w-auto">
+      <div className="relative flex-1 sm:w-64">
+        <Input
+          dir="rtl"
+          placeholder="ابحث في الكتاب..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pr-8"
+          aria-label="Search pages"
+        />
+        {searchQuery.trim() && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery("")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Clear search"
+          >
+            <X className="size-4" />
+          </button>
+        )}
       </div>
+    </div>
+  );
 
-      <div className="rounded-md border">
+  return (
+    <PageLayout
+      title="Book Pages"
+      description={`${filteredPages.length.toLocaleString()} page${filteredPages.length !== 1 ? "s" : ""}${searchQuery ? " matching search" : ""}`}
+      actions={searchActions}
+    >
+      <div className="min-w-0 rounded-md border">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
+              <TableRow key={headerGroup.id} className="hover:bg-transparent">
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                  <TableHead
+                    key={header.id}
+                    style={
+                      header.column.id === "part" || header.column.id === "pageNumber"
+                        ? { width: "80px" }
+                        : undefined
+                    }
+                  >
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(header.column.columnDef.header, header.getContext())}
                   </TableHead>
                 ))}
               </TableRow>
@@ -247,11 +250,20 @@ export function BookPagesPage({
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  className="cursor-pointer"
-                  onClick={() => onNavigate({ page: "shamela-book-page", bookId, pageId: row.original.id })}
+                  className="cursor-pointer align-top"
+                  onClick={() =>
+                    onNavigate({ page: "shamela-book-page", bookId, pageId: row.original.id })
+                  }
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell
+                      key={cell.id}
+                      className={
+                        cell.column.id === "content"
+                          ? "whitespace-normal align-top"
+                          : "align-top"
+                      }
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
@@ -259,8 +271,8 @@ export function BookPagesPage({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No results.
+                <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
+                  No results found.
                 </TableCell>
               </TableRow>
             )}
@@ -268,19 +280,29 @@ export function BookPagesPage({
         </Table>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <p className="text-sm text-muted-foreground">
-          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()} ({filteredPages.length} page(s))
+          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
         </p>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
             Previous
           </Button>
-          <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
             Next
           </Button>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }

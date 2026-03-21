@@ -119,3 +119,11 @@ export async function loadCachedBook(bookId: number): Promise<BookData | null> {
     return null;
   }
 }
+
+export async function listDownloadedBookIds(): Promise<number[]> {
+  try {
+    return await invoke<number[]>("list_downloaded_book_ids");
+  } catch {
+    return [];
+  }
+}

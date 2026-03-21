@@ -5,5 +5,8 @@
     },
     "editor.defaultFormatter": "biomejs.biome",
     "editor.formatOnSave": true,
-    "npm.packageManager": "bun"
+    "npm.packageManager": "bun",
+    "[json]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    }
 }

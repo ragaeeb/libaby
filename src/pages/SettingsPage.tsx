@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
+import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { PageLayout } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { validateAccess } from "@/lib/huggingface";
 import { useSettingsStore } from "@/stores/useSettingsStore";
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 
 export function SettingsPage() {
   const hydrate = useSettingsStore((s) => s.hydrate);
@@ -32,14 +33,11 @@ export function SettingsPage() {
   }, [token, dataset, setValidating, setValidation]);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8 p-8">
-      <div>
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Configure your HuggingFace access for Shamela dataset
-        </p>
-      </div>
-
+    <PageLayout
+      title="Settings"
+      description="Configure your HuggingFace access for Shamela dataset"
+      className="max-w-2xl"
+    >
       <Card>
         <CardHeader>
           <CardTitle>HuggingFace Dataset</CardTitle>
@@ -48,7 +46,7 @@ export function SettingsPage() {
             search books.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="hf-token">Access Token</Label>
             <div className="flex gap-2">
@@ -59,8 +57,14 @@ export function SettingsPage() {
                 onBlur={(e) => updateToken(e.target.value)}
                 placeholder="hf_..."
                 className="flex-1"
+                autoComplete="off"
               />
-              <Button variant="outline" size="sm" onClick={() => setTokenRevealed(!tokenRevealed)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setTokenRevealed(!tokenRevealed)}
+                type="button"
+              >
                 {tokenRevealed ? "Hide" : "Show"}
               </Button>
             </div>
@@ -70,7 +74,7 @@ export function SettingsPage() {
                 href="https://huggingface.co/settings/tokens"
                 target="_blank"
                 rel="noreferrer"
-                className="underline"
+                className="underline underline-offset-2 hover:text-foreground transition-colors"
               >
                 huggingface.co/settings/tokens
               </a>
@@ -90,21 +94,21 @@ export function SettingsPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3 pt-2">
+          <div className="flex flex-wrap items-center gap-3 pt-1">
             <Button onClick={handleValidate} disabled={validating || !token || !dataset}>
               {validating && <Loader2 className="mr-2 size-4 animate-spin" />}
-              {validating ? "Validating..." : "Validate Access"}
+              {validating ? "Validating…" : "Validate Access"}
             </Button>
 
             {verified && (
-              <span className="flex items-center gap-1 text-sm text-green-600">
+              <span className="flex items-center gap-1.5 text-sm text-green-600">
                 <CheckCircle2 className="size-4" />
                 Access verified
               </span>
             )}
 
             {validationError && (
-              <span className="flex items-center gap-1 text-sm text-destructive">
+              <span className="flex items-center gap-1.5 text-sm text-destructive">
                 <XCircle className="size-4" />
                 {validationError}
               </span>
@@ -112,6 +116,6 @@ export function SettingsPage() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </PageLayout>
   );
 }

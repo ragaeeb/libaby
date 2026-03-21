@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { BookOpen, CheckCircle2, Database, Download, HardDrive, Settings, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
+import { PageLayout } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useBooksStore } from "@/stores/useBooksStore";
@@ -29,29 +30,26 @@ export function DashboardPage({ onNavigate }: { onNavigate: (r: Route) => void }
   const configured = Boolean(token && dataset);
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="mt-1 text-muted-foreground">
-          Overview of your Libaby workspace
-        </p>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <PageLayout
+      title="Dashboard"
+      description="Overview of your Libaby workspace"
+    >
+      {/* Stats row */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">HuggingFace</CardTitle>
             {verified ? (
-              <CheckCircle2 className="size-4 text-green-600" />
+              <CheckCircle2 className="size-4 text-green-600 shrink-0" />
             ) : (
-              <XCircle className="size-4 text-muted-foreground" />
+              <XCircle className="size-4 text-muted-foreground shrink-0" />
             )}
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {validating ? "Validating..." : verified ? "Connected" : "Not Connected"}
+              {validating ? "Validating…" : verified ? "Connected" : "Not Connected"}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="mt-1 truncate text-xs text-muted-foreground">
               {configured ? dataset : "Configure in Settings"}
             </p>
           </CardContent>
@@ -60,14 +58,24 @@ export function DashboardPage({ onNavigate }: { onNavigate: (r: Route) => void }
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Master Database</CardTitle>
-            <Database className="size-4 text-muted-foreground" />
+            <Database className="size-4 text-muted-foreground shrink-0" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {booksLoading ? "Loading..." : totalBooks > 0 ? totalBooks.toLocaleString() : stats?.master_cached ? "Cached" : "—"}
+              {booksLoading
+                ? "Loading…"
+                : totalBooks > 0
+                  ? totalBooks.toLocaleString()
+                  : stats?.master_cached
+                    ? "Cached"
+                    : "—"}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {totalBooks > 0 ? "books in library" : stats?.master_cached ? "Ready to browse" : "Not yet downloaded"}
+            <p className="mt-1 text-xs text-muted-foreground">
+              {totalBooks > 0
+                ? "books in library"
+                : stats?.master_cached
+                  ? "Ready to browse"
+                  : "Not yet downloaded"}
             </p>
           </CardContent>
         </Card>
@@ -75,34 +83,31 @@ export function DashboardPage({ onNavigate }: { onNavigate: (r: Route) => void }
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Downloaded Books</CardTitle>
-            <HardDrive className="size-4 text-muted-foreground" />
+            <HardDrive className="size-4 text-muted-foreground shrink-0" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {stats ? stats.downloaded_books.toLocaleString() : "—"}
             </div>
-            <p className="text-xs text-muted-foreground">
-              saved locally for offline reading
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">saved locally for offline reading</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Status</CardTitle>
-            <BookOpen className="size-4 text-muted-foreground" />
+            <BookOpen className="size-4 text-muted-foreground shrink-0" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {verified ? "Ready" : "Setup Required"}
-            </div>
-            <p className="text-xs text-muted-foreground">
+            <div className="text-2xl font-bold">{verified ? "Ready" : "Setup Required"}</div>
+            <p className="mt-1 text-xs text-muted-foreground">
               {verified ? "Browse and download books" : "Add HuggingFace credentials"}
             </p>
           </CardContent>
         </Card>
       </div>
 
+      {/* Quick actions + about */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -132,10 +137,16 @@ export function DashboardPage({ onNavigate }: { onNavigate: (r: Route) => void }
             )}
             {verified && stats && stats.downloaded_books > 0 && (
               <div className="rounded-md bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
-                <Download className="mb-1 mr-2 inline size-4" />
-                You have {stats.downloaded_books} book{stats.downloaded_books !== 1 ? "s" : ""} available offline.
-                Click any book in the library to start reading.
+                <Download className="mb-0.5 mr-2 inline size-4" />
+                You have {stats.downloaded_books} book
+                {stats.downloaded_books !== 1 ? "s" : ""} available offline. Click any book in
+                the library to start reading.
               </div>
+            )}
+            {!configured && !verified && (
+              <p className="text-sm text-muted-foreground">
+                Add your HuggingFace credentials in Settings to get started.
+              </p>
             )}
           </CardContent>
         </Card>
@@ -145,18 +156,18 @@ export function DashboardPage({ onNavigate }: { onNavigate: (r: Route) => void }
             <CardTitle>About Libaby</CardTitle>
             <CardDescription>Islamic manuscript and text tools</CardDescription>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground space-y-2">
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
             <p>
-              Libaby provides tools for browsing and reading Islamic manuscripts
-              and texts from the Shamela library.
+              Libaby provides tools for browsing and reading Islamic manuscripts and texts from the
+              Shamela library.
             </p>
             <p>
-              Books are downloaded from HuggingFace datasets and cached locally
-              for fast offline access.
+              Books are downloaded from HuggingFace datasets and cached locally for fast offline
+              access.
             </p>
           </CardContent>
         </Card>
       </div>
-    </div>
+    </PageLayout>
   );
 }

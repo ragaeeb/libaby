@@ -97,6 +97,34 @@ fn get_dashboard_stats(app: tauri::AppHandle) -> Result<DashboardStats, String> 
     })
 }
 
+#[tauri::command]
+fn list_downloaded_book_ids(app: tauri::AppHandle) -> Result<Vec<u32>, String> {
+    let books_dir = resolve_books_dir(&app)?;
+
+    if !books_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut ids = std::fs::read_dir(&books_dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(|entry| entry.ok())
+        .filter_map(|entry| {
+            let path = entry.path();
+            let is_json = path.extension().is_some_and(|ext| ext == "json");
+            if !is_json {
+                return None;
+            }
+
+            path.file_stem()
+                .and_then(|stem| stem.to_str())
+                .and_then(|stem| stem.parse::<u32>().ok())
+        })
+        .collect::<Vec<_>>();
+
+    ids.sort_unstable();
+    Ok(ids)
+}
+
 // --- macOS menu ---
 
 #[cfg(target_os = "macos")]
@@ -191,6 +219,7 @@ pub fn run() {
             read_cached_master,
             decompress_and_cache_master,
             get_dashboard_stats,
+            list_downloaded_book_ids,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -2,61 +2,11 @@ import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { downloadBookData, loadCachedBook } from "@/lib/huggingface";
+import { ShamelaContent } from "@/lib/shamela-content";
 import { useBookContentStore } from "@/stores/useBookContentStore";
 import { useSettingsStore } from "@/stores/useSettingsStore";
 import type { Page } from "@/types/books";
 import type { Route } from "@/components/application-shell1";
-
-const extractTitles = (content: string): { body: string; titles: string[] } => {
-  const cleaned = content.replace(/\r/g, "\n");
-  const titles: string[] = [];
-  const titleRegex = /<span[^>]*data-type="title"[^>]*>\[([^\]]+)\]\s*\[?<\/span>/g;
-  for (const match of cleaned.matchAll(titleRegex)) {
-    titles.push(match[1]);
-  }
-  const body = cleaned.replace(/<span[^>]*data-type="title"[^>]*>.*?<\/span>/g, "").trim();
-  return { body, titles };
-};
-
-function renderPageContent(content: string) {
-  const parts = content.split("_________");
-  const mainContent = parts[0].replace(/\r/g, "\n");
-  const { body, titles } = extractTitles(mainContent);
-
-  const bodyParts = body.split("\n").map((p) => p.trim()).filter((p) => p.length > 0);
-  const footnotes = parts.slice(1).map((f) => f.replace(/\r/g, "\n").trim());
-
-  return (
-    <div className="space-y-8">
-      {titles.length > 0 && (
-        <div className="space-y-3">
-          {titles.map((title) => (
-            <div key={title} className="rounded-lg bg-primary/10 px-6 py-4 text-right">
-              <h2 className="font-bold text-2xl" dir="rtl">{title}</h2>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="prose prose-lg max-w-none" dir="rtl">
-        {bodyParts.map((part) => (
-          <p key={part} className="mb-4 text-right leading-relaxed">{part}</p>
-        ))}
-      </div>
-
-      {footnotes.length > 0 && (
-        <div className="border-t pt-8">
-          <h3 className="mb-4 font-semibold text-lg">Footnotes</h3>
-          <div className="prose prose-sm max-w-none" dir="rtl">
-            {footnotes.map((footnote) => (
-              <div key={footnote} className="mb-4 text-right text-muted-foreground leading-relaxed">{footnote}</div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export function BookPageView({
   bookId,
@@ -114,8 +64,8 @@ export function BookPageView({
   if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center gap-3 p-6">
-        <Loader2 className="size-8 animate-spin text-primary" />
-        <p className="text-muted-foreground">Loading page...</p>
+        <Loader2 className="size-6 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Loading page…</p>
       </div>
     );
   }
@@ -123,45 +73,53 @@ export function BookPageView({
   if (!page) {
     return (
       <div className="flex flex-1 flex-col gap-6 p-6">
-        <p className="text-muted-foreground">Page not found.</p>
+        <p className="text-sm text-muted-foreground">Page not found.</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-4 p-6">
+      {/* Navigation bar */}
+      <div className="flex items-center justify-between gap-4">
         <Button
           variant="outline"
+          size="sm"
           disabled={!prevPageId}
           onClick={() =>
-            prevPageId && onNavigate({ page: "shamela-book-page", bookId, pageId: prevPageId })
+            prevPageId &&
+            onNavigate({ page: "shamela-book-page", bookId, pageId: prevPageId })
           }
+          aria-label="Previous page"
         >
-          <ChevronLeft className="mr-2 h-4 w-4" />
-          Previous Page
+          <ChevronLeft className="mr-1 size-4" />
+          Previous
         </Button>
 
-        <div className="text-center">
-          <div className="text-muted-foreground text-sm">
-            {page.part && `Part ${page.part} · `}
-            Page {page.number || page.id}
-          </div>
-        </div>
+        <span className="text-sm text-muted-foreground tabular-nums">
+          {page.part ? `Part ${page.part} · ` : ""}
+          Page {page.number || page.id}
+        </span>
 
         <Button
           variant="outline"
+          size="sm"
           disabled={!nextPageId}
           onClick={() =>
-            nextPageId && onNavigate({ page: "shamela-book-page", bookId, pageId: nextPageId })
+            nextPageId &&
+            onNavigate({ page: "shamela-book-page", bookId, pageId: nextPageId })
           }
+          aria-label="Next page"
         >
-          Next Page
-          <ChevronRight className="ml-2 h-4 w-4" />
+          Next
+          <ChevronRight className="ml-1 size-4" />
         </Button>
       </div>
 
-      <div className="rounded-lg border bg-card p-8">{renderPageContent(page.content)}</div>
+      {/* Page content */}
+      <div className="min-w-0 rounded-lg border bg-card px-8 py-6">
+        <ShamelaContent content={page.content} />
+      </div>
     </div>
   );
 }
