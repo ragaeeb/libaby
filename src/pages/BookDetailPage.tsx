@@ -1,52 +1,132 @@
-import { BookOpen, Download, Loader2 } from "lucide-react";
+import { BookOpen, Download, Languages, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import type { DenormalizedBook } from "@/types/books";
 import { PageLayout } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
-import { downloadBookData, loadCachedBook } from "@/lib/huggingface";
-import { useBooksStore } from "@/stores/useBooksStore";
-import { useBookContentStore } from "@/stores/useBookContentStore";
+import { loadBookResource } from "@/lib/book-resource-store";
+import {
+  downloadAndCacheBookTranslation,
+  isBookTranslationCached,
+} from "@/lib/book-translation";
+import { getMasterBook, isBookDownloaded } from "@/lib/huggingface";
 import { useSettingsStore } from "@/stores/useSettingsStore";
 import type { Route } from "@/components/application-shell1";
+
+const TRANSLATION_PATH_PREFIX = "books/en/";
 
 export function BookDetailPage({
   bookId,
   onNavigate,
-}: { bookId: number; onNavigate: (r: Route) => void }) {
-  const books = useBooksStore((s) => s.books);
+  onBookResolved,
+}: {
+  bookId: number;
+  onNavigate: (r: Route) => void;
+  onBookResolved?: (bookId: number, title: string) => void;
+}) {
   const token = useSettingsStore((s) => s.huggingfaceToken);
   const dataset = useSettingsStore((s) => s.shamelaDataset);
-  const setBookContent = useBookContentStore((s) => s.setData);
 
-  const book = books.find((b) => b.id === bookId);
-
+  const [book, setBook] = useState<DenormalizedBook | null>(null);
+  const [loadingBook, setLoadingBook] = useState(true);
   const [cached, setCached] = useState<boolean | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [translationCached, setTranslationCached] = useState<boolean | null>(null);
+  const [downloadingTranslation, setDownloadingTranslation] = useState(false);
+  const [translationAvailable, setTranslationAvailable] = useState(false);
 
   useEffect(() => {
-    loadCachedBook(bookId).then((data) => {
-      if (data) {
-        setCached(true);
-        setBookContent(bookId, data);
-      } else {
-        setCached(false);
-      }
-    });
-  }, [bookId, setBookContent]);
+    let cancelled = false;
 
-  const handleDownload = useCallback(async () => {
-    setDownloading(true);
+    setLoadingBook(true);
+    setDownloadError(null);
+
+    Promise.all([getMasterBook(bookId), isBookDownloaded(bookId), isBookTranslationCached(bookId)])
+      .then(([bookData, downloaded, translationCachedResult]) => {
+        if (cancelled) return;
+
+        setBook(bookData);
+        setCached(downloaded);
+        setTranslationCached(translationCachedResult);
+        setLoadingBook(false);
+
+        if (bookData?.name) {
+          onBookResolved?.(bookId, bookData.en_name ?? bookData.name);
+        }
+
+        // Only check HF availability if not already cached
+        if (!translationCachedResult) {
+          import("@huggingface/hub").then(({ fileExists }) =>
+            fileExists({
+              credentials: { accessToken: token },
+              path: `${TRANSLATION_PATH_PREFIX}${bookId}.json.br`,
+              repo: { name: dataset, type: "dataset" },
+            })
+          ).then(setTranslationAvailable).catch(() => setTranslationAvailable(false));
+        } else {
+          setTranslationAvailable(true);
+        }
+      })
+      .catch((error) => {
+        if (cancelled) return;
+
+        setLoadingBook(false);
+        setDownloadError(error instanceof Error ? error.message : "Failed to load book");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bookId, onBookResolved]);
+
+  const handleDownloadTranslation = useCallback(async () => {
+    setDownloadingTranslation(true);
     setDownloadError(null);
     try {
-      const data = await downloadBookData(token, dataset, bookId);
-      setBookContent(bookId, data);
-      setCached(true);
-      window.dispatchEvent(new CustomEvent("shamela-book-downloaded", { detail: { bookId } }));
-    } catch (e) {
-      setDownloadError(e instanceof Error ? e.message : "Download failed");
+      await downloadAndCacheBookTranslation(token, dataset, bookId);
+      setTranslationCached(true);
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : "Translation download failed");
+    } finally {
+      setDownloadingTranslation(false);
     }
-    setDownloading(false);
-  }, [token, dataset, bookId, setBookContent]);
+  }, [bookId, dataset, token]);
+
+  const handleDownload = useCallback(async () => {
+    if (!book) return;
+
+    setDownloading(true);
+    setDownloadError(null);
+
+    try {
+      await loadBookResource({
+        bookId,
+        token,
+        dataset,
+        title: book.name,
+        allowDownload: true,
+      });
+      setCached(true);
+      window.dispatchEvent(
+        new CustomEvent("shamela-book-downloaded", {
+          detail: { bookId, title: book.name },
+        }),
+      );
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : "Download failed");
+    } finally {
+      setDownloading(false);
+    }
+  }, [book, bookId, dataset, token]);
+
+  if (loadingBook) {
+    return (
+      <div className="flex flex-1 items-center justify-center gap-3 p-6">
+        <Loader2 className="size-6 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Loading book details…</p>
+      </div>
+    );
+  }
 
   if (!book) {
     return (
@@ -61,10 +141,37 @@ export function BookDetailPage({
       {cached && (
         <Button
           variant="outline"
-          onClick={() => onNavigate({ page: "shamela-book-pages", bookId })}
+          onClick={() =>
+            onNavigate({
+              page: "shamela-book-pages",
+              bookId,
+              bookTitle: book.en_name ?? book.name,
+              bookArTitle: book.name,
+            })
+          }
         >
           <BookOpen className="mr-2 size-4" />
           View Pages
+        </Button>
+      )}
+      {translationAvailable && !translationCached && (
+        <Button
+          variant="outline"
+          onClick={handleDownloadTranslation}
+          disabled={downloadingTranslation}
+        >
+          {downloadingTranslation ? (
+            <Loader2 className="mr-2 size-4 animate-spin" />
+          ) : (
+            <Languages className="mr-2 size-4" />
+          )}
+          {downloadingTranslation ? "Downloading…" : "Download Translation"}
+        </Button>
+      )}
+      {translationCached && (
+        <Button variant="outline" disabled>
+          <Languages className="mr-2 size-4" />
+          Translation Downloaded
         </Button>
       )}
       <Button onClick={handleDownload} disabled={downloading || !!cached}>
@@ -80,31 +187,63 @@ export function BookDetailPage({
 
   return (
     <PageLayout title="" actions={actions}>
-      {/* Book title and meta — RTL hero section */}
       <div className="min-w-0 space-y-2 rounded-lg border bg-card p-6">
+        {/* English title (primary) */}
+        {book.en_name && (
+          <h2 className="break-words text-2xl font-bold leading-snug tracking-tight">
+            {book.en_name}
+          </h2>
+        )}
+
+        {/* Arabic title */}
         <h2
-          className="break-words text-right text-2xl font-bold leading-snug tracking-tight"
+          className={`break-words text-right leading-snug tracking-tight ${
+            book.en_name
+              ? "text-lg font-medium text-muted-foreground"
+              : "text-2xl font-bold"
+          }`}
           dir="rtl"
         >
           {book.name}
         </h2>
 
+        {/* Author */}
         {book.author?.name && (
-          <p className="text-right text-lg text-muted-foreground" dir="rtl">
-            {book.author.name}
-            {book.author.death ? ` (ت ${book.author.death} هـ)` : ""}
-          </p>
+          <div className="space-y-0.5 pt-1">
+            {book.en_author && (
+              <p className="text-lg text-muted-foreground">{book.en_author}</p>
+            )}
+            <p
+              className={`text-right text-muted-foreground ${
+                book.en_author ? "text-sm" : "text-lg"
+              }`}
+              dir="rtl"
+            >
+              {book.author.name}
+              {book.author.death ? ` (ت ${book.author.death} هـ)` : ""}
+            </p>
+          </div>
         )}
 
+        {/* Category */}
         {book.category?.name && (
-          <p className="text-right text-sm text-muted-foreground" dir="rtl">
-            {book.category.name}
-          </p>
+          <div className="flex items-center gap-2 pt-0.5">
+            {book.en_category && (
+              <span className="text-sm text-muted-foreground">{book.en_category}</span>
+            )}
+            {book.en_category && (
+              <span className="text-muted-foreground/40">·</span>
+            )}
+            <span className="text-sm text-muted-foreground" dir="rtl">
+              {book.category.name}
+            </span>
+          </div>
         )}
 
+        {/* Bibliography */}
         {book.bibliography && (
           <p
-            className="whitespace-pre-line text-right text-sm leading-relaxed text-muted-foreground/80"
+            className="whitespace-pre-line text-right text-sm leading-relaxed text-muted-foreground/80 pt-2"
             dir="rtl"
           >
             {book.bibliography}

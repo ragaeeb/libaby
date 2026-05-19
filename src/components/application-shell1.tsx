@@ -4,12 +4,22 @@ import {
   ChevronsUpDown,
   FileText,
   LayoutDashboard,
+  Loader2,
   LogOut,
   Settings,
   User,
 } from "lucide-react";
 import type * as React from "react";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useState,
+} from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Breadcrumb,
@@ -51,25 +61,48 @@ import {
   SidebarRail,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { listDownloadedBookIds, loadCachedBook, loadMasterBooks } from "@/lib/huggingface";
-import { buildShamelaTitleTree, sanitizeShamelaText, type ShamelaTitleNode } from "@/lib/shamela-content";
+import { loadBookResource } from "@/lib/book-resource-store";
+import {
+  getMasterBooksByIds,
+  listDownloadedBooks,
+  type DownloadedBookEntry,
+} from "@/lib/huggingface";
+import { type ShamelaTitleNode } from "@/lib/shamela-tree";
 import { cn } from "@/lib/utils";
-import { BookDetailPage } from "@/pages/BookDetailPage";
-import { BookPagesPage } from "@/pages/BookPagesPage";
-import { BookPageView } from "@/pages/BookPageView";
-import { DashboardPage } from "@/pages/DashboardPage";
-import { SettingsPage } from "@/pages/SettingsPage";
-import { ShamelaPage } from "@/pages/ShamelaPage";
-import { useBooksStore } from "@/stores/useBooksStore";
 import { useSettingsStore } from "@/stores/useSettingsStore";
+
+const DashboardPage = lazy(() =>
+  import("@/pages/DashboardPage").then((module) => ({ default: module.DashboardPage })),
+);
+const SettingsPage = lazy(() =>
+  import("@/pages/SettingsPage").then((module) => ({ default: module.SettingsPage })),
+);
+const ShamelaPage = lazy(() =>
+  import("@/pages/ShamelaPage").then((module) => ({ default: module.ShamelaPage })),
+);
+const BookDetailPage = lazy(() =>
+  import("@/pages/BookDetailPage").then((module) => ({ default: module.BookDetailPage })),
+);
+const BookPagesPage = lazy(() =>
+  import("@/pages/BookPagesPage").then((module) => ({ default: module.BookPagesPage })),
+);
+const BookPageView = lazy(() =>
+  import("@/pages/BookPageView").then((module) => ({ default: module.BookPageView })),
+);
+
+type BookRouteBase = {
+  bookId: number;
+  bookTitle?: string;   // English / transliterated title
+  bookArTitle?: string; // Original Arabic title
+};
 
 export type Route =
   | { page: "dashboard" }
   | { page: "settings" }
   | { page: "shamela-books" }
-  | { page: "shamela-book"; bookId: number }
-  | { page: "shamela-book-pages"; bookId: number }
-  | { page: "shamela-book-page"; bookId: number; pageId: number };
+  | ({ page: "shamela-book" } & BookRouteBase)
+  | ({ page: "shamela-book-pages" } & BookRouteBase)
+  | ({ page: "shamela-book-page"; pageId: number; pageNumber?: string | number } & BookRouteBase);
 
 type SimplePageId = "dashboard" | "settings" | "shamela-books";
 
@@ -99,6 +132,11 @@ type UserData = {
 
 type BreadcrumbEntry = { label: string; onClick?: () => void };
 
+type TitleTreeState = {
+  status: "idle" | "loading" | "loaded" | "error";
+  tree: ShamelaTitleNode[];
+};
+
 const userData: UserData = {
   avatar: "",
   email: "",
@@ -114,6 +152,10 @@ const overviewGroup: NavGroup = {
   title: "Overview",
 };
 
+function isBookRoute(route: Route): route is Extract<Route, { bookId: number }> {
+  return "bookId" in route;
+}
+
 function isNavItemActive(itemPageId: string, route: Route): boolean {
   if (route.page === itemPageId) return true;
   if (itemPageId === "shamela-books" && route.page.startsWith("shamela-book")) return true;
@@ -121,20 +163,13 @@ function isNavItemActive(itemPageId: string, route: Route): boolean {
 }
 
 function getActiveBookId(route: Route): number | null {
-  switch (route.page) {
-    case "shamela-book":
-    case "shamela-book-pages":
-    case "shamela-book-page":
-      return route.bookId;
-    default:
-      return null;
-  }
+  return isBookRoute(route) ? route.bookId : null;
 }
 
 function getBreadcrumbs(
   route: Route,
-  getBookName: (id: number) => string,
-  onNavigate: (r: Route) => void,
+  getBookName: (id: number, fallbackTitle?: string) => string,
+  onNavigate: (route: Route) => void,
 ): BreadcrumbEntry[] {
   switch (route.page) {
     case "dashboard":
@@ -147,15 +182,15 @@ function getBreadcrumbs(
       return [
         { label: "Shamela" },
         { label: "Books", onClick: () => onNavigate({ page: "shamela-books" }) },
-        { label: getBookName(route.bookId) },
+        { label: getBookName(route.bookId, route.bookTitle) },
       ];
     case "shamela-book-pages":
       return [
         { label: "Shamela" },
         { label: "Books", onClick: () => onNavigate({ page: "shamela-books" }) },
         {
-          label: getBookName(route.bookId),
-          onClick: () => onNavigate({ bookId: route.bookId, page: "shamela-book" }),
+          label: getBookName(route.bookId, route.bookTitle),
+          onClick: () => onNavigate({ bookId: route.bookId, bookTitle: route.bookTitle, page: "shamela-book" }),
         },
         { label: "Pages" },
       ];
@@ -164,14 +199,19 @@ function getBreadcrumbs(
         { label: "Shamela" },
         { label: "Books", onClick: () => onNavigate({ page: "shamela-books" }) },
         {
-          label: getBookName(route.bookId),
-          onClick: () => onNavigate({ bookId: route.bookId, page: "shamela-book" }),
+          label: getBookName(route.bookId, route.bookTitle),
+          onClick: () => onNavigate({ bookId: route.bookId, bookTitle: route.bookTitle, page: "shamela-book" }),
         },
         {
           label: "Pages",
-          onClick: () => onNavigate({ bookId: route.bookId, page: "shamela-book-pages" }),
+          onClick: () =>
+            onNavigate({
+              bookId: route.bookId,
+              bookTitle: route.bookTitle,
+              page: "shamela-book-pages",
+            }),
         },
-        { label: `Page ${route.pageId}` },
+        { label: route.pageNumber != null ? `Page ${route.pageNumber}` : `Page ${route.pageId}` },
       ];
   }
 }
@@ -199,7 +239,7 @@ const NavMenuItem = ({
 }: {
   item: NavItem;
   route: Route;
-  onNavigate: (r: Route) => void;
+  onNavigate: (route: Route) => void;
 }) => {
   const Icon = item.icon;
   const hasChildren = item.children && item.children.length > 0;
@@ -236,10 +276,12 @@ const NavMenuItem = ({
               <SidebarMenuSubButton
                 className="h-auto cursor-pointer items-start py-1.5"
                 isActive={activeBookId === child.bookId}
-                onClick={() => onNavigate({ bookId: child.bookId, page: "shamela-book" })}
+                onClick={() =>
+                  onNavigate({ bookId: child.bookId, bookTitle: child.label, page: "shamela-book" })
+                }
               >
                 <FileText className="mt-0.5 size-4 shrink-0" />
-                <span className="min-w-0 whitespace-normal break-words text-right leading-5" dir="rtl">
+                <span className="min-w-0 whitespace-normal break-words leading-5">
                   {child.label}
                 </span>
               </SidebarMenuSubButton>
@@ -260,13 +302,15 @@ function titleTreeHasActiveNode(nodes: ShamelaTitleNode[], pageId: number): bool
 const DownloadedTitleMenuItem = ({
   node,
   bookId,
+  bookTitle,
   route,
   onNavigate,
 }: {
   node: ShamelaTitleNode;
   bookId: number;
+  bookTitle: string;
   route: Route;
-  onNavigate: (r: Route) => void;
+  onNavigate: (route: Route) => void;
 }) => {
   const hasChildren = node.children.length > 0;
   const activePageId = route.page === "shamela-book-page" && route.bookId === bookId ? route.pageId : null;
@@ -280,13 +324,11 @@ const DownloadedTitleMenuItem = ({
     }
   }, [active, descendantActive]);
 
-  const label = sanitizeShamelaText(node.title.content) || `Section ${node.title.id}`;
-
   const navigate = useCallback(() => {
     if (node.pageId !== null) {
-      onNavigate({ bookId, page: "shamela-book-page", pageId: node.pageId });
+      onNavigate({ bookId, bookTitle, page: "shamela-book-page", pageId: node.pageId });
     }
-  }, [bookId, node.pageId, onNavigate]);
+  }, [bookId, bookTitle, node.pageId, onNavigate]);
 
   if (!hasChildren) {
     return (
@@ -298,7 +340,7 @@ const DownloadedTitleMenuItem = ({
         >
           <FileText className="mt-0.5 size-4 shrink-0" />
           <span className="min-w-0 whitespace-normal break-words text-right leading-5" dir="rtl">
-            {label}
+            {node.label}
           </span>
         </SidebarMenuSubButton>
       </SidebarMenuSubItem>
@@ -314,11 +356,11 @@ const DownloadedTitleMenuItem = ({
       >
         <FileText className="mt-0.5 size-4 shrink-0" />
         <span className="min-w-0 whitespace-normal break-words text-right leading-5" dir="rtl">
-          {label}
+          {node.label}
         </span>
       </SidebarMenuSubButton>
       <CollapsibleTrigger
-        render={<SidebarMenuAction aria-label={`Toggle ${label}`} showOnHover={false} />}
+        render={<SidebarMenuAction aria-label={`Toggle ${node.label}`} showOnHover={false} />}
       >
         <ChevronRight className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
       </CollapsibleTrigger>
@@ -329,6 +371,7 @@ const DownloadedTitleMenuItem = ({
               key={child.title.id}
               node={child}
               bookId={bookId}
+              bookTitle={bookTitle}
               route={route}
               onNavigate={onNavigate}
             />
@@ -342,13 +385,15 @@ const DownloadedTitleMenuItem = ({
 const DownloadedBookMenuItem = ({
   book,
   route,
-  titleTree,
+  treeState,
+  onExpand,
   onNavigate,
 }: {
   book: BookNavItem;
   route: Route;
-  titleTree: ShamelaTitleNode[];
-  onNavigate: (r: Route) => void;
+  treeState: TitleTreeState;
+  onExpand: (bookId: number) => void;
+  onNavigate: (route: Route) => void;
 }) => {
   const activeBookId = getActiveBookId(route);
   const active = activeBookId === book.bookId;
@@ -361,11 +406,21 @@ const DownloadedBookMenuItem = ({
   }, [active]);
 
   const navigateToBook = useCallback(() => {
-    onNavigate({ page: "shamela-book", bookId: book.bookId });
-  }, [book.bookId, onNavigate]);
+    onNavigate({ page: "shamela-book", bookId: book.bookId, bookTitle: book.label });
+  }, [book.bookId, book.label, onNavigate]);
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="group/collapsible" render={<SidebarMenuItem />}>
+    <Collapsible
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (nextOpen) {
+          onExpand(book.bookId);
+        }
+      }}
+      className="group/collapsible"
+      render={<SidebarMenuItem />}
+    >
       <SidebarMenuButton isActive={active} onClick={navigateToBook}>
         <BookOpen className="size-4" />
         <span className="min-w-0 truncate">{book.label}</span>
@@ -377,17 +432,34 @@ const DownloadedBookMenuItem = ({
       </CollapsibleTrigger>
       <CollapsibleContent>
         <SidebarMenuSub>
-          {titleTree.length > 0 ? (
-            titleTree.map((node) => (
-              <DownloadedTitleMenuItem
-                key={node.title.id}
-                node={node}
-                bookId={book.bookId}
-                route={route}
-                onNavigate={onNavigate}
-              />
-            ))
-          ) : (
+          {treeState.status === "loading" && (
+            <SidebarMenuSubItem>
+              <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
+                <Loader2 className="size-3 animate-spin" />
+                Loading sections…
+              </div>
+            </SidebarMenuSubItem>
+          )}
+          {treeState.status === "error" && (
+            <SidebarMenuSubItem>
+              <div className="px-2 py-1.5 text-right text-xs text-muted-foreground">
+                Could not load sections
+              </div>
+            </SidebarMenuSubItem>
+          )}
+          {treeState.status === "loaded" && treeState.tree.length > 0
+            ? treeState.tree.map((node) => (
+                <DownloadedTitleMenuItem
+                  key={node.title.id}
+                  node={node}
+                  bookId={book.bookId}
+                  bookTitle={book.label}
+                  route={route}
+                  onNavigate={onNavigate}
+                />
+              ))
+            : null}
+          {treeState.status === "loaded" && treeState.tree.length === 0 && (
             <SidebarMenuSubItem>
               <div className="px-2 py-1.5 text-right text-xs text-muted-foreground">
                 No titles available
@@ -404,12 +476,14 @@ const ShamelaBooksSection = ({
   route,
   books,
   titleTrees,
+  onExpand,
   onNavigate,
 }: {
   route: Route;
   books: BookNavItem[];
-  titleTrees: Record<number, ShamelaTitleNode[]>;
-  onNavigate: (r: Route) => void;
+  titleTrees: Record<number, TitleTreeState>;
+  onExpand: (bookId: number) => void;
+  onNavigate: (route: Route) => void;
 }) => {
   const [open, setOpen] = useState(true);
 
@@ -438,7 +512,8 @@ const ShamelaBooksSection = ({
                     key={book.bookId}
                     book={book}
                     route={route}
-                    titleTree={titleTrees[book.bookId] ?? []}
+                    treeState={titleTrees[book.bookId] ?? { status: "idle", tree: [] }}
+                    onExpand={onExpand}
                     onNavigate={onNavigate}
                   />
                 ))}
@@ -468,7 +543,7 @@ const NavUser = ({ user }: { user: UserData }) => (
             <AvatarFallback className="rounded-lg">
               {user.name
                 .split(" ")
-                .map((n) => n[0])
+                .map((name) => name[0])
                 .join("")}
             </AvatarFallback>
           </Avatar>
@@ -492,7 +567,7 @@ const NavUser = ({ user }: { user: UserData }) => (
                   <AvatarFallback className="rounded-lg">
                     {user.name
                       .split(" ")
-                      .map((n) => n[0])
+                      .map((name) => name[0])
                       .join("")}
                   </AvatarFallback>
                 </Avatar>
@@ -528,7 +603,7 @@ const NavGroupSection = ({
 }: {
   group: NavGroup;
   route: Route;
-  onNavigate: (r: Route) => void;
+  onNavigate: (route: Route) => void;
 }) => (
   <SidebarGroup>
     <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
@@ -542,109 +617,244 @@ const NavGroupSection = ({
   </SidebarGroup>
 );
 
-function PageContent({ route, onNavigate }: { route: Route; onNavigate: (r: Route) => void }) {
-  switch (route.page) {
-    case "settings":
-      return <SettingsPage />;
-    case "shamela-books":
-      return <ShamelaPage onBookClick={(id) => onNavigate({ bookId: id, page: "shamela-book" })} />;
-    case "shamela-book":
-      return <BookDetailPage bookId={route.bookId} onNavigate={onNavigate} />;
-    case "shamela-book-pages":
-      return <BookPagesPage bookId={route.bookId} onNavigate={onNavigate} />;
-    case "shamela-book-page":
-      return <BookPageView bookId={route.bookId} pageId={route.pageId} onNavigate={onNavigate} />;
-    default:
-      return <DashboardPage onNavigate={onNavigate} />;
+function LoadingPage() {
+  return (
+    <div className="flex flex-1 items-center justify-center gap-3 p-6">
+      <Loader2 className="size-6 animate-spin text-primary" />
+      <p className="text-sm text-muted-foreground">Loading…</p>
+    </div>
+  );
+}
+
+function BookPageViewWrapper({
+  route,
+  onNavigate,
+  knownBookTitles,
+}: {
+  route: Extract<Route, { page: "shamela-book-page" }>;
+  onNavigate: (r: Route) => void;
+  knownBookTitles: Record<number, string>;
+}) {
+  // Memoize bookMeta so BookPageView gets a stable reference — a new object
+  // literal on every render was causing BookPageView to re-render and
+  // recompute expensive citationText on every parent state change.
+  const bookMeta = useMemo(
+    () => ({
+      bookId: route.bookId,
+      enTitle: knownBookTitles[route.bookId] ?? route.bookTitle,
+      arTitle: route.bookArTitle, // Arabic title kept separate from English bookTitle
+    }),
+    [route.bookId, route.bookTitle, route.bookArTitle, knownBookTitles],
+  );
+
+  return (
+    <BookPageView
+      bookId={route.bookId}
+      pageId={route.pageId}
+      onNavigate={onNavigate}
+      bookMeta={bookMeta}
+    />
+  );
+}
+
+function PageContent({
+  route,
+  onNavigate,
+  onBookResolved,
+  knownBookTitles,
+}: {
+  route: Route;
+  onNavigate: (route: Route) => void;
+  onBookResolved: (bookId: number, title: string) => void;
+  knownBookTitles: Record<number, string>;
+}) {
+  return (
+    <Suspense fallback={<LoadingPage />}>
+      {route.page === "settings" ? (
+        <SettingsPage />
+      ) : route.page === "shamela-books" ? (
+        <ShamelaPage
+          onBookClick={(bookId, bookTitle) => {
+            onBookResolved(bookId, bookTitle);
+            onNavigate({ bookId, bookTitle, page: "shamela-book" });
+          }}
+        />
+      ) : route.page === "shamela-book" ? (
+        <BookDetailPage bookId={route.bookId} onNavigate={onNavigate} onBookResolved={onBookResolved} />
+      ) : route.page === "shamela-book-pages" ? (
+        <BookPagesPage bookId={route.bookId} onNavigate={onNavigate} />
+      ) : route.page === "shamela-book-page" ? (
+        <BookPageViewWrapper route={route} onNavigate={onNavigate} knownBookTitles={knownBookTitles} />
+      ) : (
+        <DashboardPage onNavigate={onNavigate} />
+      )}
+    </Suspense>
+  );
+}
+
+function enrichRoute(
+  route: Route,
+  knownBookTitles: Record<number, string>,
+  currentRoute: Route,
+): Route {
+  if (!isBookRoute(route)) {
+    return route;
   }
+
+  if (route.bookTitle) {
+    return route;
+  }
+
+  const currentBookTitle =
+    isBookRoute(currentRoute) && currentRoute.bookId === route.bookId
+      ? currentRoute.bookTitle
+      : undefined;
+
+  return {
+    ...route,
+    bookTitle: knownBookTitles[route.bookId] ?? currentBookTitle,
+  };
 }
 
 export function ApplicationShell1({ className }: { className?: string }) {
   const [currentRoute, setCurrentRoute] = useState<Route>({ page: "dashboard" });
-  const [downloadedBookIds, setDownloadedBookIds] = useState<number[]>([]);
-  const [downloadedBookTrees, setDownloadedBookTrees] = useState<Record<number, ShamelaTitleNode[]>>(
-    {},
-  );
-  const shamelaVerified = useSettingsStore((s) => s.shamelaAccessVerified);
-  const token = useSettingsStore((s) => s.huggingfaceToken);
-  const dataset = useSettingsStore((s) => s.shamelaDataset);
-  const hydrate = useSettingsStore((s) => s.hydrate);
-  const books = useBooksStore((s) => s.books);
-  const booksLoading = useBooksStore((s) => s.loading);
+  const [downloadedBooks, setDownloadedBooks] = useState<DownloadedBookEntry[]>([]);
+  const [downloadedBookTrees, setDownloadedBookTrees] = useState<Record<number, TitleTreeState>>({});
+  const [knownBookTitles, setKnownBookTitles] = useState<Record<number, string>>({}); 
+
+  const shamelaVerified = useSettingsStore((state) => state.shamelaAccessVerified);
+  const token = useSettingsStore((state) => state.huggingfaceToken);
+  const dataset = useSettingsStore((state) => state.shamelaDataset);
+  const hydrate = useSettingsStore((state) => state.hydrate);
 
   useEffect(() => {
     hydrate();
   }, [hydrate]);
 
-  useEffect(() => {
-    if (!shamelaVerified || books.length > 0 || booksLoading) return;
-    const { setLoading, setBooks, setError } = useBooksStore.getState();
-    setLoading(true);
-    loadMasterBooks(token, dataset)
-      .then((archive) => setBooks(archive.books))
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load books"));
-  }, [shamelaVerified, token, dataset, books.length, booksLoading]);
+  const recordBookTitle = useCallback((bookId: number, title: string) => {
+    setKnownBookTitles((current) => {
+      if (current[bookId] === title) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [bookId]: title,
+      };
+    });
+  }, []);
+
+  const refreshDownloadedBooks = useEffectEvent(async () => {
+    const entries = await listDownloadedBooks();
+    setDownloadedBooks(entries);
+
+    // Build the initial title map from manifest entries (may be Arabic)
+    const titleMap: Record<number, string> = {};
+    for (const entry of entries) {
+      if (entry.title) titleMap[entry.book_id] = entry.title;
+    }
+
+    // Overwrite with English titles from master index when available.
+    // Falls back gracefully if master is not yet loaded.
+    if (entries.length > 0) {
+      try {
+        const books = await getMasterBooksByIds(entries.map((e) => e.book_id));
+        for (const book of books) {
+          const enTitle = book.en_name ?? book.name;
+          titleMap[book.id] = enTitle;
+        }
+      } catch {
+        // master not cached yet — Arabic fallback is already in titleMap
+      }
+    }
+
+    setKnownBookTitles((current) => {
+      let changed = false;
+      const next = { ...current };
+      for (const [idStr, title] of Object.entries(titleMap)) {
+        const id = Number(idStr);
+        if (current[id] !== title) {
+          next[id] = title;
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  });
 
   useEffect(() => {
     if (!shamelaVerified) {
-      setDownloadedBookIds([]);
+      setDownloadedBooks([]);
       setDownloadedBookTrees({});
       return;
     }
 
-    const loadDownloadedBooks = () => {
-      listDownloadedBookIds().then(setDownloadedBookIds);
+    void refreshDownloadedBooks();
+
+    const handleDownloaded = (event: Event) => {
+      const detail = (event as CustomEvent<{ bookId?: number; title?: string }>).detail;
+      if (detail?.bookId && detail.title) {
+        recordBookTitle(detail.bookId, detail.title);
+      }
+      void refreshDownloadedBooks();
     };
 
-    loadDownloadedBooks();
-    window.addEventListener("shamela-book-downloaded", loadDownloadedBooks);
-
+    window.addEventListener("shamela-book-downloaded", handleDownloaded);
     return () => {
-      window.removeEventListener("shamela-book-downloaded", loadDownloadedBooks);
+      window.removeEventListener("shamela-book-downloaded", handleDownloaded);
     };
+  // refreshDownloadedBooks and recordBookTitle are useEffectEvent / stable
+  // useCallback — they must NOT be in deps or they create new references
+  // on every render and cause an infinite loop.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shamelaVerified]);
 
-  useEffect(() => {
-    if (!shamelaVerified || downloadedBookIds.length === 0) {
-      setDownloadedBookTrees({});
-      return;
-    }
+  const ensureTitleTree = useCallback(
+    async (bookId: number) => {
+      setDownloadedBookTrees((current) => {
+        const existing = current[bookId];
+        if (existing && (existing.status === "loading" || existing.status === "loaded")) {
+          return current;
+        }
 
-    let cancelled = false;
+        return {
+          ...current,
+          [bookId]: { status: "loading", tree: [] },
+        };
+      });
 
-    const loadTitleTrees = async () => {
-      const entries = await Promise.all(
-        downloadedBookIds.map(async (bookId) => {
-          const cached = await loadCachedBook(bookId);
-          const tree = cached ? buildShamelaTitleTree(cached.titles, cached.pages) : [];
-          return [bookId, tree] as const;
-        }),
-      );
+      try {
+        const resource = await loadBookResource({
+          bookId,
+          token,
+          dataset,
+          allowDownload: false,
+        });
 
-      if (!cancelled) {
-        setDownloadedBookTrees(Object.fromEntries(entries));
+        setDownloadedBookTrees((current) => ({
+          ...current,
+          [bookId]: { status: "loaded", tree: resource.titleTree },
+        }));
+      } catch {
+        setDownloadedBookTrees((current) => ({
+          ...current,
+          [bookId]: { status: "error", tree: [] },
+        }));
       }
-    };
+    },
+    [dataset, token],
+  );
 
-    loadTitleTrees().catch(() => {
-      if (!cancelled) {
-        setDownloadedBookTrees({});
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [downloadedBookIds, shamelaVerified]);
-
-  const onNavigate = useCallback((r: Route) => setCurrentRoute(r), []);
+  const onNavigate = useCallback(
+    (route: Route) => {
+      setCurrentRoute((current) => enrichRoute(route, knownBookTitles, current));
+    },
+    [knownBookTitles],
+  );
 
   const getBookName = useCallback(
-    (id: number) => {
-      const book = books.find((b) => b.id === id);
-      return book?.name ?? `Book ${id}`;
-    },
-    [books],
+    (id: number, fallbackTitle?: string) => knownBookTitles[id] ?? fallbackTitle ?? `Book ${id}`,
+    [knownBookTitles],
   );
 
   const breadcrumbs = useMemo(
@@ -654,14 +864,11 @@ export function ApplicationShell1({ className }: { className?: string }) {
 
   const downloadedBooksNav = useMemo(
     () =>
-      downloadedBookIds.map((bookId) => {
-        const book = books.find((entry) => entry.id === bookId);
-        return {
-          bookId,
-          label: book?.name ?? `Book ${bookId}`,
-        };
-      }),
-    [books, downloadedBookIds],
+      downloadedBooks.map((entry) => ({
+        bookId: entry.book_id,
+        label: getBookName(entry.book_id, entry.title ?? undefined),
+      })),
+    [downloadedBooks, getBookName],
   );
 
   const navGroups: NavGroup[] = [overviewGroup];
@@ -682,11 +889,14 @@ export function ApplicationShell1({ className }: { className?: string }) {
                 onNavigate={onNavigate}
               />
             ))}
-            {shamelaVerified && (
+            {shamelaVerified && downloadedBooksNav.length > 0 && (
               <ShamelaBooksSection
                 route={currentRoute}
                 books={downloadedBooksNav}
                 titleTrees={downloadedBookTrees}
+                onExpand={(bookId) => {
+                  void ensureTitleTree(bookId);
+                }}
                 onNavigate={onNavigate}
               />
             )}
@@ -706,20 +916,19 @@ export function ApplicationShell1({ className }: { className?: string }) {
           />
           <Breadcrumb className="hidden min-w-0 flex-1 md:block">
             <BreadcrumbList className="flex-nowrap">
-              {breadcrumbs.map((item, i) => (
+              {breadcrumbs.map((item, index) => (
                 <Fragment key={item.label}>
-                  {i > 0 && <BreadcrumbSeparator className="shrink-0" />}
+                  {index > 0 && <BreadcrumbSeparator className="shrink-0" />}
                   <BreadcrumbItem className="min-w-0">
                     {item.onClick ? (
                       <BreadcrumbLink
                         onClick={item.onClick}
                         className="block max-w-[180px] cursor-pointer truncate"
-                        dir="rtl"
                       >
                         {item.label}
                       </BreadcrumbLink>
                     ) : (
-                      <BreadcrumbPage className="block max-w-[200px] truncate" dir="rtl">
+                      <BreadcrumbPage className="block max-w-[200px] truncate">
                         {item.label}
                       </BreadcrumbPage>
                     )}
@@ -730,7 +939,7 @@ export function ApplicationShell1({ className }: { className?: string }) {
           </Breadcrumb>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <PageContent route={currentRoute} onNavigate={onNavigate} />
+          <PageContent route={currentRoute} onNavigate={onNavigate} onBookResolved={recordBookTitle} knownBookTitles={knownBookTitles} />
         </div>
       </SidebarInset>
     </SidebarProvider>

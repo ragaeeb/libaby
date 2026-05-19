@@ -1,23 +1,23 @@
 import {
   type ColumnDef,
+  type PaginationState,
   type SortingState,
   type VisibilityState,
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ChevronDown, Loader2 } from "lucide-react";
-import type { DenormalizedBook } from "shamela";
-import { useCallback, useEffect, useState } from "react";
+import { ArrowUpDown, ChevronDown, Languages, Loader2 } from "lucide-react";
+import type { DenormalizedBook } from "@/types/books";
+import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { PageLayout } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -29,9 +29,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { loadMasterBooks } from "@/lib/huggingface";
-import { useBooksStore } from "@/stores/useBooksStore";
+import {
+  downloadAndCacheMaster,
+  isMasterCached,
+  queryMasterBooks,
+  type MasterQueryResult,
+} from "@/lib/huggingface";
 import { useSettingsStore } from "@/stores/useSettingsStore";
+
+type Lang = "en" | "ar";
 
 function SortableHeader({
   column,
@@ -45,89 +51,106 @@ function SortableHeader({
   );
 }
 
-const columns: ColumnDef<DenormalizedBook>[] = [
-  {
-    accessorKey: "id",
-    header: "ID",
-    cell: ({ row }) => (
-      <span className="font-mono text-xs tabular-nums text-muted-foreground">
-        {row.getValue("id")}
-      </span>
-    ),
-  },
-  {
-    accessorKey: "name",
-    header: ({ column }) => <SortableHeader column={column} label="Title" />,
-    cell: ({ row }) => (
-      <span
-        className="line-clamp-2 block whitespace-normal text-sm font-medium"
-        dir="rtl"
-        title={String(row.getValue("name"))}
-      >
-        {row.getValue("name")}
-      </span>
-    ),
-  },
-  {
-    id: "author",
-    accessorFn: (row) => row.author?.name,
-    header: ({ column }) => <SortableHeader column={column} label="Author" />,
-    cell: ({ row }) => (
-      <span
-        className="line-clamp-1 block whitespace-normal text-sm"
-        dir="rtl"
-        title={String(row.getValue("author") ?? "")}
-      >
-        {row.getValue("author")}
-      </span>
-    ),
-  },
-  {
-    id: "authorDeath",
-    accessorFn: (row) => row.author?.death,
-    header: "Death",
-    cell: ({ row }) => {
-      const death = row.getValue("authorDeath") as number | undefined;
-      return death ? (
-        <span className="whitespace-nowrap text-xs text-muted-foreground">
-          {death} هـ
+function buildColumns(lang: Lang): ColumnDef<DenormalizedBook>[] {
+  const isAr = lang === "ar";
+
+  return [
+    {
+      accessorKey: "id",
+      header: "ID",
+      cell: ({ row }) => (
+        <span className="font-mono text-xs tabular-nums text-muted-foreground">
+          {row.getValue("id")}
         </span>
-      ) : null;
+      ),
     },
-  },
-  {
-    id: "category",
-    accessorFn: (row) => row.category?.name,
-    header: ({ column }) => <SortableHeader column={column} label="Category" />,
-    cell: ({ row }) => (
-      <span
-        className="line-clamp-1 block whitespace-normal text-sm text-muted-foreground"
-        dir="rtl"
-      >
-        {row.getValue("category")}
-      </span>
-    ),
-  },
-  {
-    accessorKey: "printed",
-    header: "Printed",
-    cell: ({ row }) => {
-      const v = row.getValue("printed") as number;
-      return (
-        <span className="text-xs text-muted-foreground">{v === 1 ? "Yes" : "No"}</span>
-      );
+    {
+      accessorKey: "name",
+      header: ({ column }) => <SortableHeader column={column} label="Title" />,
+      cell: ({ row }) => {
+        const book = row.original;
+        const text = isAr ? book.name : (book.en_name ?? book.name);
+        return (
+          <span
+            className="line-clamp-2 block whitespace-normal text-sm font-medium"
+            dir={isAr ? "rtl" : "ltr"}
+            title={text}
+          >
+            {text}
+          </span>
+        );
+      },
     },
-  },
-  {
-    accessorKey: "version",
-    header: "Version",
-    cell: ({ row }) => (
-      <span className="font-mono text-xs text-muted-foreground">
-        {row.getValue("version")}
-      </span>
-    ),
-  },
-];
+    {
+      id: "author",
+      accessorFn: (row) => isAr ? row.author?.name : (row.en_author ?? row.author?.name),
+      header: ({ column }) => <SortableHeader column={column} label="Author" />,
+      cell: ({ row }) => {
+        const book = row.original;
+        const text = isAr ? book.author?.name : (book.en_author ?? book.author?.name);
+        return (
+          <span
+            className="line-clamp-1 block whitespace-normal text-sm"
+            dir={isAr ? "rtl" : "ltr"}
+            title={text}
+          >
+            {text}
+          </span>
+        );
+      },
+    },
+    {
+      id: "authorDeath",
+      accessorFn: (row) => row.author?.death,
+      header: "Death",
+      cell: ({ row }) => {
+        const death = row.getValue("authorDeath") as number | undefined;
+        return death ? (
+          <span className="whitespace-nowrap text-xs text-muted-foreground">
+            {death} هـ
+          </span>
+        ) : null;
+      },
+    },
+    {
+      id: "category",
+      accessorFn: (row) => isAr ? row.category?.name : (row.en_category ?? row.category?.name),
+      header: ({ column }) => <SortableHeader column={column} label="Category" />,
+      cell: ({ row }) => {
+        const book = row.original;
+        const text = isAr ? book.category?.name : (book.en_category ?? book.category?.name);
+        return (
+          <span
+            className="line-clamp-1 block whitespace-normal text-sm text-muted-foreground"
+            dir={isAr ? "rtl" : "ltr"}
+            title={text}
+          >
+            {text}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: "printed",
+      header: ({ column }) => <SortableHeader column={column} label="Printed" />,
+      cell: ({ row }) => {
+        const value = row.getValue("printed") as number;
+        return (
+          <span className="text-xs text-muted-foreground">{value === 1 ? "Yes" : "No"}</span>
+        );
+      },
+    },
+    {
+      accessorKey: "version",
+      header: ({ column }) => <SortableHeader column={column} label="Version" />,
+      cell: ({ row }) => (
+        <span className="font-mono text-xs text-muted-foreground">
+          {row.getValue("version")}
+        </span>
+      ),
+    },
+  ];
+}
 
 const defaultVisibility: VisibilityState = {
   id: true,
@@ -149,74 +172,104 @@ const COLUMN_WIDTHS: Record<string, string> = {
   version: "70px",
 };
 
-export function ShamelaPage({ onBookClick }: { onBookClick?: (bookId: number) => void }) {
+const LANG_LABELS: Record<Lang, string> = {
+  en: "English",
+  ar: "Arabic",
+};
+
+export function ShamelaPage({
+  onBookClick,
+}: {
+  onBookClick?: (bookId: number, bookTitle: string) => void;
+}) {
   const token = useSettingsStore((s) => s.huggingfaceToken);
   const dataset = useSettingsStore((s) => s.shamelaDataset);
-  const books = useBooksStore((s) => s.books);
-  const loading = useBooksStore((s) => s.loading);
-  const error = useBooksStore((s) => s.error);
-  const setBooks = useBooksStore((s) => s.setBooks);
-  const setLoading = useBooksStore((s) => s.setLoading);
-  const setError = useBooksStore((s) => s.setError);
 
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [globalFilter, setGlobalFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(defaultVisibility);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 25 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<MasterQueryResult | null>(null);
+  const [lang, setLang] = useState<Lang>("en");
+
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const activeSort = sorting[0];
+
+  const columns = useMemo(() => buildColumns(lang), [lang]);
 
   useEffect(() => {
-    if (books.length > 0 || loading || error) return;
+    setPagination((current) => ({ ...current, pageIndex: 0 }));
+  }, [deferredSearchQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setLoading(true);
+    setError(null);
 
     const load = async () => {
-      setLoading(true);
-      try {
-        const archive = await loadMasterBooks(token, dataset);
-        setBooks(archive.books);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to download books");
+      if (!(await isMasterCached())) {
+        await downloadAndCacheMaster(token, dataset);
       }
+
+      return queryMasterBooks({
+        pageIndex: pagination.pageIndex,
+        pageSize: pagination.pageSize,
+        query: deferredSearchQuery,
+        sortBy: activeSort?.id,
+        sortDesc: activeSort?.desc,
+      });
     };
 
-    load();
-  }, [token, dataset, books.length, loading, error, setBooks, setLoading, setError]);
+    load()
+      .then((queryResult) => {
+        if (cancelled) return;
+        setResult(queryResult);
+        setLoading(false);
+      })
+      .catch((loadError: unknown) => {
+        if (cancelled) return;
+        const message =
+          loadError instanceof Error
+            ? loadError.message
+            : typeof loadError === "string"
+              ? loadError
+              : "Failed to load books";
+        setError(message);
+        setLoading(false);
+      });
 
-  const globalFilterFn = useCallback(
-    (row: { original: DenormalizedBook }, _columnId: string, filterValue: string) => {
-      const terms = filterValue
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((t) => t.length > 0);
-      const fields = [
-        row.original.name,
-        row.original.author?.name,
-        row.original.category?.name,
-        row.original.bibliography,
-      ].map((f) => f?.toLowerCase() || "");
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSort?.desc, activeSort?.id, dataset, deferredSearchQuery, pagination.pageIndex, pagination.pageSize, token]);
 
-      return terms.every((term) => fields.some((f) => f.includes(term)));
-    },
-    [],
-  );
+  const pageCount = result ? Math.max(1, Math.ceil(result.total / result.pageSize)) : 1;
 
   const table = useReactTable({
-    data: books,
+    data: result?.items ?? [],
     columns,
-    state: { sorting, globalFilter, columnVisibility },
-    onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
+    state: { sorting, columnVisibility, pagination },
+    onSortingChange: (updater) => {
+      const nextSorting = typeof updater === "function" ? updater(sorting) : updater;
+      setSorting(nextSorting);
+      setPagination((current) => ({ ...current, pageIndex: 0 }));
+    },
     onColumnVisibilityChange: setColumnVisibility,
-    globalFilterFn,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: 25 } },
+    manualPagination: true,
+    manualSorting: true,
+    pageCount,
   });
 
-  if (loading) {
+  if (loading && !result) {
     return (
       <div className="flex flex-1 items-center justify-center gap-3 p-6">
         <Loader2 className="size-6 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Downloading books database…</p>
+        <p className="text-sm text-muted-foreground">Loading books database…</p>
       </div>
     );
   }
@@ -225,24 +278,41 @@ export function ShamelaPage({ onBookClick }: { onBookClick?: (bookId: number) =>
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
         <p className="text-sm text-destructive">{error}</p>
-        <Button variant="outline" size="sm" onClick={() => { useBooksStore.getState().reset(); }}>
-          Retry
-        </Button>
       </div>
     );
   }
-
-  const filtered = table.getFilteredRowModel().rows.length;
 
   const searchActions = (
     <>
       <Input
         placeholder="Search by title, author, or category…"
-        value={globalFilter}
-        onChange={(e) => setGlobalFilter(e.target.value)}
+        value={searchQuery}
+        onChange={(event) => {
+          const value = event.target.value;
+          startTransition(() => {
+            setSearchQuery(value);
+          });
+        }}
         className="w-full sm:w-64"
         aria-label="Search books"
       />
+
+      {/* Language toggle */}
+      <DropdownMenu>
+        <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="shrink-0" />}>
+          <Languages className="mr-1.5 size-4" />
+          {LANG_LABELS[lang]}
+          <ChevronDown className="ml-1.5 size-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuRadioGroup value={lang} onValueChange={(v) => setLang(v as Lang)}>
+            <DropdownMenuRadioItem value="en">English</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="ar">Arabic</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Column visibility */}
       <DropdownMenu>
         <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="shrink-0" />}>
           Columns <ChevronDown className="ml-1.5 size-4" />
@@ -250,15 +320,15 @@ export function ShamelaPage({ onBookClick }: { onBookClick?: (bookId: number) =>
         <DropdownMenuContent align="end">
           {table
             .getAllColumns()
-            .filter((col) => col.getCanHide())
-            .map((col) => (
+            .filter((column) => column.getCanHide())
+            .map((column) => (
               <DropdownMenuCheckboxItem
-                key={col.id}
-                checked={col.getIsVisible()}
-                onCheckedChange={(value) => col.toggleVisibility(!!value)}
+                key={column.id}
+                checked={column.getIsVisible()}
+                onCheckedChange={(value) => column.toggleVisibility(!!value)}
                 className="capitalize"
               >
-                {col.id}
+                {column.id}
               </DropdownMenuCheckboxItem>
             ))}
         </DropdownMenuContent>
@@ -266,13 +336,16 @@ export function ShamelaPage({ onBookClick }: { onBookClick?: (bookId: number) =>
     </>
   );
 
+  const filteredCount = result?.total ?? 0;
+  const totalCount = result?.totalAll ?? 0;
+
   return (
     <PageLayout
       title="Shamela Library"
       description={
-        globalFilter
-          ? `${filtered.toLocaleString()} of ${books.length.toLocaleString()} books`
-          : `${books.length.toLocaleString()} books from shamela.ws`
+        deferredSearchQuery
+          ? `${filteredCount.toLocaleString()} of ${totalCount.toLocaleString()} books`
+          : `${totalCount.toLocaleString()} books from shamela.ws`
       }
       actions={searchActions}
     >
@@ -300,7 +373,7 @@ export function ShamelaPage({ onBookClick }: { onBookClick?: (bookId: number) =>
                 <TableRow
                   key={row.id}
                   className={onBookClick ? "cursor-pointer" : undefined}
-                  onClick={() => onBookClick?.(row.original.id)}
+                  onClick={() => onBookClick?.(row.original.id, row.original.en_name ?? row.original.name)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
@@ -335,7 +408,7 @@ export function ShamelaPage({ onBookClick }: { onBookClick?: (bookId: number) =>
 
       <div className="flex items-center justify-between gap-4">
         <p className="text-sm text-muted-foreground">
-          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+          Page {pagination.pageIndex + 1} of {pageCount}
         </p>
         <div className="flex gap-2">
           <Button

@@ -1,12 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
-import { BookOpen, CheckCircle2, Database, Download, HardDrive, Settings, XCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { BookOpen, CheckCircle2, Database, Download, HardDrive, Loader2, Settings, XCircle } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { PageLayout } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useBooksStore } from "@/stores/useBooksStore";
 import { useSettingsStore } from "@/stores/useSettingsStore";
 import type { Route } from "@/components/application-shell1";
+import { downloadAndCacheMaster } from "@/lib/huggingface";
 
 type DashboardStats = {
   master_cached: boolean;
@@ -18,14 +18,31 @@ export function DashboardPage({ onNavigate }: { onNavigate: (r: Route) => void }
   const dataset = useSettingsStore((s) => s.shamelaDataset);
   const verified = useSettingsStore((s) => s.shamelaAccessVerified);
   const validating = useSettingsStore((s) => s.validating);
-  const totalBooks = useBooksStore((s) => s.books.length);
-  const booksLoading = useBooksStore((s) => s.loading);
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadStats = useCallback(() => {
     invoke<DashboardStats>("get_dashboard_stats").then(setStats).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
+
+  const handleDownloadMaster = useCallback(async () => {
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      await downloadAndCacheMaster(token, dataset);
+      loadStats();
+    } catch (e) {
+      setDownloadError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDownloading(false);
+    }
+  }, [token, dataset, loadStats]);
 
   const configured = Boolean(token && dataset);
 
@@ -61,21 +78,9 @@ export function DashboardPage({ onNavigate }: { onNavigate: (r: Route) => void }
             <Database className="size-4 text-muted-foreground shrink-0" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {booksLoading
-                ? "Loading…"
-                : totalBooks > 0
-                  ? totalBooks.toLocaleString()
-                  : stats?.master_cached
-                    ? "Cached"
-                    : "—"}
-            </div>
+            <div className="text-2xl font-bold">{stats?.master_cached ? "Cached" : "—"}</div>
             <p className="mt-1 text-xs text-muted-foreground">
-              {totalBooks > 0
-                ? "books in library"
-                : stats?.master_cached
-                  ? "Ready to browse"
-                  : "Not yet downloaded"}
+              {stats?.master_cached ? "Ready to browse on demand" : "Not yet downloaded"}
             </p>
           </CardContent>
         </Card>
@@ -124,6 +129,27 @@ export function DashboardPage({ onNavigate }: { onNavigate: (r: Route) => void }
                 <Settings className="mr-2 size-4" />
                 Configure HuggingFace Access
               </Button>
+            )}
+            {verified && stats && !stats.master_cached && (
+              <Button
+                variant="outline"
+                className="justify-start"
+                onClick={handleDownloadMaster}
+                disabled={downloading}
+              >
+                {downloading ? (
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                ) : (
+                  <Database className="mr-2 size-4" />
+                )}
+                {downloading ? "Downloading Master Database…" : "Download Master Database"}
+              </Button>
+            )}
+            {downloadError && (
+              <p className="flex items-center gap-1.5 text-sm text-destructive">
+                <XCircle className="size-4 shrink-0" />
+                {downloadError}
+              </p>
             )}
             {verified && (
               <Button

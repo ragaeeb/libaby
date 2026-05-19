@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
-import type { Page, Title } from "@/types/books";
-import { convertContentToMarkdown, mapPageCharacterContent } from "../../shamela/src/content.ts";
+import { convertContentToMarkdown, mapPageCharacterContent } from "shamela/content";
+import { sanitizeShamelaText } from "./shamela-tree";
 
 const FOOTNOTE_MARKER = "_________";
 
@@ -13,12 +13,6 @@ type ShamelaContentProps = {
   compact?: boolean;
   previewBlocks?: number;
   showFootnotes?: boolean;
-};
-
-export type ShamelaTitleNode = {
-  pageId: number | null;
-  title: Title;
-  children: ShamelaTitleNode[];
 };
 
 function toMarkdown(content: string) {
@@ -59,42 +53,6 @@ function toBlocks(markdown: string): Block[] {
 
   flushParagraph();
   return blocks;
-}
-
-function resolveTitlePageId(title: Title, pages: Page[]) {
-  const exactPage = pages.find((page) => page.id === title.page);
-  if (exactPage) return exactPage.id;
-
-  const numericPage = pages.find((page) => page.page === title.page);
-  if (numericPage) return numericPage.id;
-
-  const printedPage = pages.find((page) => Number(page.number) === title.page);
-  if (printedPage) return printedPage.id;
-
-  return null;
-}
-
-function buildNodeTree(
-  titles: Title[],
-  pages: Page[],
-  parentId: number | null,
-): ShamelaTitleNode[] {
-  return titles
-    .filter((title) => (title.parent ?? null) === parentId)
-    .sort((a, b) => a.page - b.page || a.id - b.id)
-    .map((title) => ({
-      title,
-      pageId: resolveTitlePageId(title, pages),
-      children: buildNodeTree(titles, pages, title.id),
-    }));
-}
-
-export function buildShamelaTitleTree(titles: Title[], pages: Page[]): ShamelaTitleNode[] {
-  return buildNodeTree(titles, pages, null);
-}
-
-export function sanitizeShamelaText(text: string) {
-  return mapPageCharacterContent(text).replace(/\s+/g, " ").trim();
 }
 
 function renderBlock(block: Block, index: number, compact: boolean) {

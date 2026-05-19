@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { useCallback, useState } from "react";
 import { PageLayout } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +9,6 @@ import { validateAccess } from "@/lib/huggingface";
 import { useSettingsStore } from "@/stores/useSettingsStore";
 
 export function SettingsPage() {
-  const hydrate = useSettingsStore((s) => s.hydrate);
   const token = useSettingsStore((s) => s.huggingfaceToken);
   const dataset = useSettingsStore((s) => s.shamelaDataset);
   const updateToken = useSettingsStore((s) => s.updateHuggingfaceToken);
@@ -22,14 +21,10 @@ export function SettingsPage() {
 
   const [tokenRevealed, setTokenRevealed] = useState(false);
 
-  useEffect(() => {
-    hydrate();
-  }, [hydrate]);
-
   const handleValidate = useCallback(async () => {
     setValidating(true);
     const result = await validateAccess(token, dataset);
-    setValidation({ verified: result.ok, error: result.error ?? null });
+    setValidation({ error: result.error ?? null, verified: result.ok });
   }, [token, dataset, setValidating, setValidation]);
 
   return (

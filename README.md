@@ -5,429 +5,250 @@
 [![Node.js CI](https://github.com/ragaeeb/libaby/actions/workflows/build.yml/badge.svg)](https://github.com/ragaeeb/libaby/actions/workflows/build.yml)
 ![Bun](https://img.shields.io/badge/Bun-%23000000.svg?style=for-the-badge&logo=bun&logoColor=white)
 ![GitHub License](https://img.shields.io/github/license/ragaeeb/libaby)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A modern, local-first Islamic library management system for studying and researching Islamic texts. Built with Next.js, TypeScript, and Meilisearch.
+A local-first desktop application for browsing, downloading, and reading Islamic texts from the Shamela library. Built with Tauri 2, React 19, and Rust.
 
 ## Overview
 
-Libaby enables users to build and manage their personal Islamic library locally without hosting requirements. Access books from multiple Islamic digital libraries (Shamela, Turath) and manage them in a unified interface. Deploy locally for offline use or host in the cloud - same codebase, your choice.
-
-## Features
-
-- **Multi-Library Support**: Connect to Shamela (shamela.ws) and Turath (turath.io) libraries
-- **Local-First Architecture**: All data stored locally with no external dependencies
-- **Book Management**: Browse, download, and organize Islamic texts with transliteration support
-- **Advanced Search**: Meilisearch-powered full-text search with Arabic diacritics support and fuzzy matching
-  - Global search across all downloaded books
-  - Book-specific search for targeted research
-  - RTL (Right-to-Left) interface for Arabic content
-- **Smart Content Display**: 
-  - Automatic title extraction and highlighting
-  - Proper RTL text formatting
-  - Multi-line content wrapping in tables
-  - Footnote separation
-- **Modern UI**: Clean interface with collapsible sidebar navigation, breadcrumb trails, and responsive design
-- **Cloud-Ready**: Deployable to Vercel or any platform with minimal configuration
+Libaby downloads the Shamela library catalogue from a private HuggingFace dataset and lets you browse all books, download individual books locally, and read them with full bilingual (Arabic + English transliteration) support. Everything is stored on disk — no external server is required after the initial download.
 
 ## Tech Stack
 
-- **Framework**: Next.js 16 with App Router and Turbopack
-- **Runtime**: Bun (>=1.3.0)
-- **Node.js**: 22.x LTS recommended for Node-based deployments
-- **UI**: React 19, Tailwind CSS, shadcn/ui, Radix UI
-- **Search**: Meilisearch with Arabic language support
-- **State Management**: Zustand for client state, Server Actions for data fetching
-- **Data Layer**: JSON-based storage with in-memory caching
+| Layer | Technology |
+|---|---|
+| Desktop shell | [Tauri 2](https://tauri.app) |
+| Frontend | React 19, TypeScript, Vite 8, Bun |
+| UI components | [shadcn/ui](https://ui.shadcn.com) (Radix UI + Tailwind CSS) |
+| Backend / IPC | Rust (`src-tauri/src/`) |
+| Package manager | Bun ≥ 1.3.10 |
+| Rust toolchain | Stable (via `rustup`) |
+| Data source | HuggingFace private dataset (brotli-compressed JSON) |
+
+## Features
+
+- **Browse Shamela catalogue** — search across 10 000+ books with Arabic diacritic normalisation, macron stripping, and numeric ID lookup.
+- **Bilingual interface** — toggle between English transliteration and Arabic. All book names, authors, and categories are shown in both scripts.
+- **Offline reading** — books are downloaded once, stored as JSON, and read locally. No network needed after download.
+- **Translation support** — if an English translation file exists on HuggingFace (`books/en/{id}.json.br`), it can be downloaded and shown alongside the Arabic text in a two-column layout.
+- **Citation copy** — each translated page has a Copy button that formats the text + Arabic-Indic numerals citation + Shamela URL to the clipboard.
+- **Sidebar table-of-contents** — books are expanded in the sidebar with their chapter/section tree for quick navigation.
+
+## Prerequisites
+
+1. **Bun** ≥ 1.3.10 — [bun.sh](https://bun.sh)
+2. **Rust stable** — `rustup toolchain install stable`
+3. **Tauri system deps** — [tauri.app/v2/guides/prerequisites](https://tauri.app/v2/guides/prerequisites/) (platform-specific)
+4. **HuggingFace access token** — read permission to the private Shamela dataset
+5. **Shamela HuggingFace dataset name** — e.g. `ragaeeb/shamela`
 
 ## Getting Started
 
-### Prerequisites
-
-1. **Bun** (>=1.3.0): [Install Bun](https://bun.sh)
-2. **Meilisearch**: Choose one installation method below
-
-### Meilisearch Installation
-
-#### Option 1: Binary (No Docker Required) - Recommended for Local Dev
-
-**macOS (Homebrew):**
 ```bash
-brew install meilisearch
-```
-
-**Linux:**
-```bash
-curl -L https://install.meilisearch.com | sh
-```
-
-**Windows:**
-Download from [Meilisearch Releases](https://github.com/meilisearch/meilisearch/releases)
-
-**Start Meilisearch:**
-```bash
-meilisearch --master-key="masterKey"
-```
-
-#### Option 2: Docker
-
-```bash
-docker-compose up -d
-```
-
-### Installation
-
-```bash
-# Clone the repository
 git clone https://github.com/ragaeeb/libaby.git
 cd libaby
-
-# Install dependencies
 bun install
-
-# Copy environment configuration
-cp .env.example .env
+bun run dev          # starts Vite + Tauri dev window
 ```
 
-### Configuration
+On first launch:
+1. Open **Settings** and enter your HuggingFace token and dataset name.
+2. Go to the **Dashboard** and click **Download Master Database** (≈40 MB, downloads `master/master.json.br` + `master/master_en.json.br`).
+3. Browse books in **Shamela → Books**, click a book, then **Download Book**.
+4. Click **View Pages** to read. If a translation is available, **Download Translation** will appear.
 
-Edit `.env` with your settings:
+## Available Scripts
 
-```bash
-DATA_DIR=./data
-SHAMELA_API_KEY=your_shamela_key
-SHAMELA_BOOKS_ENDPOINT=https://shamela.ws/api/books
-SHAMELA_MASTER_ENDPOINT=https://shamela.ws/api/master
-MEILI_HOST=http://localhost:7700
-MEILI_MASTER_KEY=your-secure-key-here
-```
-
-### Running the Application
-
-1. **Start Meilisearch** (in a separate terminal):
-   ```bash
-   meilisearch --master-key="masterKey"
-   ```
-
-2. **Start the development server**:
-   ```bash
-   bun run dev
-   ```
-
-3. Visit `http://localhost:3000`
-
-4. **Configure Library Access**:
-   - Navigate to Settings (`/settings`)
-   - Add API keys for Shamela and/or Turath
-   - Save configuration
-
-5. **Download Books**:
-   - Browse available books in the library
-   - Click "Download Book" on any book page
-   - Books are stored in `data/libraries/{library}/books/`
-
-6. **Index Books for Search** (after downloading):
-   ```bash
-   bun run index
-   ```
-
-## Search Features
-
-### Global Search (`/search`)
-- Search across all downloaded books in your library
-- Arabic text with full diacritics support
-- Fuzzy matching for typo tolerance
-- Results show book title, author, page number, and content preview
-- Click any result to jump directly to that page
-
-### Book-Specific Search
-- Available on any book's pages view
-- Filter pages within a single book
-- Same powerful Meilisearch features
-- Combine with table of contents navigation
-
-### Search Best Practices
-
-- Meilisearch automatically handles Arabic diacritics normalization
-- Search works with both Arabic script and transliterations
-- Re-run `bun run index` after downloading new books to update the search index
-- Search queries support multi-word phrases and boolean logic
+| Command | Description |
+|---|---|
+| `bun run dev` | Start Vite dev server + Tauri window |
+| `bun run build` | Production Tauri build |
+| `bun run vite:build` | TypeScript check + Vite bundle only |
+| `bun run ci` | Vite build + `cargo check` (used in CI) |
+| `bun run lint` | Biome lint |
+| `bun run lint:fix` | Biome lint with auto-fix |
+| `bun run format` | Biome format check |
+| `bun run format:fix` | Biome format with auto-fix |
+| `bun run upgrade:tauri` | Sync Tauri NPM + Rust crate versions (see below) |
 
 ## Project Structure
 
 ```text
-src/
-├── actions/          # Server actions for Next.js
-│   ├── authors.ts    # Author and category details
-│   ├── book-download.ts  # Book download operations
-│   ├── books.ts      # Book management
-│   ├── config.ts     # Configuration management
-│   ├── search.ts     # Meilisearch integration
-│   └── shamela.ts    # Shamela library operations
-├── app/              # Next.js App Router pages
-│   ├── libraries/
-│   │   └── shamela/
-│   │       ├── author/[authorId]/   # Author pages
-│   │       ├── book/[bookId]/       # Book details and pages
-│   │       ├── category/[categoryId]/  # Category pages
-│   │       └── page.tsx             # Library browse
-│   ├── search/       # Global search page
-│   └── settings/     # Configuration
-├── components/       # React components
-│   ├── app-sidebar.tsx           # Navigation sidebar
-│   ├── page-header.tsx           # Breadcrumb header
-│   ├── paginated-books-table.tsx # Reusable book table
-│   └── ui/           # shadcn/ui components
-├── lib/
-│   ├── data/         # Consolidated data layer
-│   │   └── index.ts  # Master data, config, downloads
-│   ├── cache/        # In-memory caching
-│   └── libraries/    # Library-specific integrations
-└── stores/           # Zustand state management
-    ├── useBookPagesStore.ts
-    └── useLibraryStore.ts
+libaby/
+├── src/                          # React frontend
+│   ├── components/
+│   │   ├── application-shell1.tsx  # Root shell: routing, sidebar, breadcrumbs
+│   │   ├── page-layout.tsx         # Shared page wrapper
+│   │   └── ui/                     # shadcn/ui primitives
+│   ├── lib/
+│   │   ├── book-resource.ts        # BookResource builder (pages, titles, index)
+│   │   ├── book-resource-store.ts  # LRU cache for BookResource instances
+│   │   ├── book-translation.ts     # EnExcerpt types, TranslationIndex builder, Tauri wrappers
+│   │   ├── huggingface.ts          # All Tauri command wrappers (invoke calls)
+│   │   ├── io.ts                   # File I/O helpers
+│   │   ├── shamela-content.tsx     # Arabic content → markdown → React renderer
+│   │   ├── shamela-tree.ts         # Title node tree builder for sidebar
+│   │   └── utils.ts               # cn() and misc helpers
+│   ├── pages/
+│   │   ├── DashboardPage.tsx       # Stats + download master
+│   │   ├── SettingsPage.tsx        # HuggingFace token + dataset config
+│   │   ├── ShamelaPage.tsx         # Paginated books table with search + language toggle
+│   │   ├── BookDetailPage.tsx      # Book info + download book/translation buttons
+│   │   ├── BookPagesPage.tsx       # Paginated table of all pages in a book
+│   │   └── BookPageView.tsx        # Single page reader with bilingual layout + citation
+│   ├── stores/
+│   │   ├── useSettingsStore.ts     # Zustand: HF token, dataset, validation state
+│   │   ├── useBooksStore.ts        # Zustand: downloaded book IDs cache
+│   │   └── useBookContentStore.ts  # Zustand: in-memory book content cache
+│   └── types/
+│       └── books.ts                # DenormalizedBook (extends shamela npm types with en_* fields)
+│
+├── src-tauri/
+│   ├── src/
+│   │   ├── main.rs                 # Tauri entry point
+│   │   ├── lib.rs                  # All Tauri commands + app state
+│   │   └── catalog.rs             # MasterIndex: search, normalisation, EN injection
+│   └── Cargo.toml                 # Rust dependencies
+│
+├── scripts/
+│   ├── upgrade-tauri.sh           # Sync Tauri NPM + Rust crate versions
+│   └── sync-version.mjs           # Sync package.json version → Cargo.toml
+│
+└── docs/                          # Architecture notes and comparisons
 ```
 
-## Architecture
+## Architecture Notes
 
-### Data Layer
+### Data Flow
 
-The application uses a consolidated data layer (`src/lib/data/index.ts`) that:
-- Loads master library data (books, authors, categories)
-- Caches data in memory with TTL (1 hour)
-- Manages configuration and download tracking
-- Handles transliterations for multilingual support
+```
+HuggingFace dataset (private)
+  └─ master/master.json.br         → master.json (local)
+  └─ master/master_en.json.br      → master_en.json (local)
+  └─ books/{id}.json.br            → books/{id}.json (local)
+  └─ books/en/{id}.json.br         → books/en/{id}.json (local, optional)
 
-### Search Architecture
+Rust (catalog.rs)
+  MasterIndex { books: Vec<DenormalizedBook>, search_entries: Vec<SearchEntry> }
+  ↳ builds normalised search blob per book (strips diacritics/macrons, includes numeric ID)
+  ↳ injects en_name / en_author / en_category from master_en.json at index build time
 
-Meilisearch handles all full-text search with:
-- Arabic language support with diacritics normalization
-- Automatic word segmentation for agglutinated words
-- Configurable ranking and relevance
-- Fast indexing and search performance
-- Scalable to millions of documents
+Tauri IPC (lib.rs commands)
+  ↳ query_master_books(params)        → paginated + filtered book list
+  ↳ download_and_cache_book(id)       → fetches books/{id}.json.br, stores locally
+  ↳ read_cached_book_if_exists(id)    → reads books/{id}.json
+  ↳ download_and_cache_book_translation(id) → fetches books/en/{id}.json.br
+  ↳ read_cached_book_translation_if_exists  → reads books/en/{id}.json
 
-Index structure:
+React frontend
+  ↳ huggingface.ts  wraps every invoke() call with typed promises
+  ↳ book-resource.ts  parses raw BookData → BookResource (pageById, pageIndexById, titleTree)
+  ↳ book-resource-store.ts  LRU cache (max 6) so repeat page navigations skip re-parsing
+  ↳ book-translation.ts  parses translation JSON → TranslationIndex (Map<pageId, EnExcerpt[]>)
+```
+
+### Route Model
+
+The shell uses a discriminated union `Route` type. Navigation is purely in-memory — no URL router. `enrichRoute` fills in missing `bookTitle`/`bookArTitle` from `knownBookTitles` when navigating from the sidebar.
+
 ```typescript
+type Route =
+  | { page: "dashboard" }
+  | { page: "settings" }
+  | { page: "shamela-books" }
+  | { page: "shamela-book";       bookId: number; bookTitle?: string; bookArTitle?: string }
+  | { page: "shamela-book-pages"; bookId: number; bookTitle?: string; bookArTitle?: string }
+  | { page: "shamela-book-page";  bookId: number; pageId: number; pageNumber?: string | number;
+                                   bookTitle?: string; bookArTitle?: string }
+```
+
+### Key Design Decisions
+
+- **`useEffectEvent` functions must never be in `useEffect` deps arrays** — they are not stable references in all React builds. Only primitive values (strings, booleans, numbers) should be deps.
+- **`bookMeta` is memoized in `BookPageViewWrapper`** — prevents `BookPageView` re-rendering on every parent render, which would re-run expensive `ShamelaContent` markdown parsing.
+- **Translation index is keyed by `bookId`, not `pageId`** — the translation effect fires once per book, not on every page navigation.
+- **`setKnownBookTitles` bails out when nothing changes** — returns `current` reference to avoid re-renders when `refreshDownloadedBooks` polls with unchanged data.
+
+## Data Formats
+
+### `master.json` (root object)
+```jsonc
 {
-  id: string;              // Unique identifier
-  bookId: string;          // Book reference
-  bookTitle: string;       // Book name
-  authorId: string;        // Author reference
-  authorName: string;      // Author name
-  pageId: number;          // Page number
-  pageNumber?: string;     // Display page number
-  content: string;         // Page content (searchable)
+  "books": [
+    {
+      "id": 1681,
+      "name": "صحيح البخاري",
+      "author": { "id": 55, "name": "محمد بن إسماعيل البخاري" },
+      "category": { "id": 23, "name": "الحديث" },
+      "printed": 1,
+      "version": "5.0",   // NOTE: may be a string float — handled in Rust
+      ...
+    }
+  ]
 }
 ```
 
-### Server Actions
+### `master_en.json` (translations)
+```jsonc
+{
+  "headings": [{ "id": "A55", "text": "Muḥammad ibn Ismāʿīl al-Bukhārī" }],
+  "footnotes": [{ "id": "C23", "text": "Hadith" }],
+  "excerpts": [{ "id": "B1681", "text": "Ṣaḥīḥ al-Bukhārī" }]
+}
+```
+- `A{n}` → `authors.id = n`
+- `C{n}` → `categories.id = n`
+- `B{n}` → `books.id = n`
 
-Using **Server Actions** for:
-- Direct function calls (no HTTP overhead)
-- Type-safe by default
-- Automatic serialization
-- Progressive enhancement
+### `books/{id}.json` (individual book)
+Parsed by the `shamela` npm package (`BookData` type). Contains `pages[]` and `titles[]`.
 
-## Database Management
+### `books/en/{id}.json` (book translation, optional)
+Same shape as `master_en.json`. Key field: `excerpts[].from` / `excerpts[].to` — page IDs from the Arabic book's `pages[].id`. Used to build `TranslationIndex`.
 
-### Data Storage
+## Maintenance
 
-Data is stored in `./data/` by default:
-- `config.json`: Library API configurations
-- `downloaded.json`: Downloaded books tracking
-- `libraries/{library}/master.json`: Library catalog
-- `libraries/{library}/master.en.json`: Transliterations
-- `libraries/{library}/books/*.json`: Book content
-- `meili_data/`: Meilisearch index data
+### Upgrading Tauri
 
-Override data directory:
+Tauri requires its NPM package (`@tauri-apps/api`) and Rust core crate (`tauri`) to be on the **same major.minor version**. When you run `bun update`, the NPM side can advance ahead of the Rust lock file and trigger:
 
-```bash
-# macOS/Linux
-DATA_DIR=/custom/path bun run dev
-
-# Windows (PowerShell)
-$env:DATA_DIR = "/custom/path"; bun run dev
+```
+Error Found version mismatched Tauri packages.
+tauri (v2.x.y) : @tauri-apps/api (v2.z.0)
 ```
 
-### Meilisearch Maintenance
-
-**Re-index after downloading books:**
-```bash
-bun run index
-```
-
-**Stop Meilisearch:**
-```bash
-# Binary: Ctrl+C in terminal
-
-# Docker:
-docker-compose down
-
-# Remove data:
-docker-compose down -v
-```
-
-**Check Meilisearch health:**
-Visit `http://localhost:7700/health`
-
-## Dataset Generation & Distribution
-
-If you need to generate a complete, compressed book dataset for distribution (e.g., to HuggingFace), use the specialized download script.
-
-### 1. Download & Compress All
-This script downloads every book in the master catalog, denormalizes the data, and compresses each file using Brotli (Quality 11) in parallel.
+**One-command fix:**
 
 ```bash
-bun run scripts/downloadAll.ts
+bun run upgrade:tauri
 ```
 
-- **Output**: `data/libraries/shamela/books/dataset/*.json.br`
-- **Concurrency**: Defaults to 5 parallel compression tasks.
-- **Backoff**: includes exponential backoff to handle Shamela rate limits.
+This script (`scripts/upgrade-tauri.sh`) will:
+1. Upgrade `@tauri-apps/api` and `@tauri-apps/cli` via `bun update`.
+2. Read the resolved `@tauri-apps/api` version.
+3. Patch `src-tauri/Cargo.toml` with the matching `major.minor` for the `tauri` crate.
+4. Run `cargo update`.
 
-### 2. Upload to HuggingFace
-Once generated, you can upload the large folder of compressed files directly to the HuggingFace Hub using their CLI:
+> **Note:** `tauri-build` and `tauri-plugin-*` crates have **independent** version lines and do **not** need to match `@tauri-apps/api`.
 
+After running:
 ```bash
-# Replace 'account/datasetName' with your target repo
-hf upload-large-folder account/datasetName ./data/libraries/shamela/books/dataset --repo-type=dataset
+git add package.json bun.lock src-tauri/Cargo.toml src-tauri/Cargo.lock
+git commit -m "chore: upgrade tauri to vX.Y"
 ```
-
----
-
-## Development
-
-### Code Quality
-
-```bash
-# Format code
-bun run format
-
-# Lint
-bun run lint
-```
-
-### Production Build
-
-```bash
-bun run build
-bun run start
-```
-
-## Deployment
-
-### Vercel / Cloud Platforms
-
-The app can be deployed to any Node.js-compatible platform.
-
-**Requirements:**
-- Persistent storage for `DATA_DIR`
-- Meilisearch instance (managed or self-hosted)
-- Environment variables configured
-
-**Environment Variables:**
-```bash
-DATA_DIR=/var/data
-SHAMELA_API_KEY=xxx
-MEILI_HOST=https://your-meilisearch-instance.com
-MEILI_MASTER_KEY=xxx
-```
-
-**Meilisearch Hosting Options:**
-- [Meilisearch Cloud](https://www.meilisearch.com/cloud) (managed)
-- Self-host on Fly.io, Railway, DigitalOcean
-- Docker container on any VPS
-
-**Note:** Vercel's filesystem is ephemeral. For production, use:
-- External storage volume for `DATA_DIR`
-- Managed Meilisearch Cloud
-- Or deploy to platforms with persistent storage (Fly.io, Railway)
-
-Live demo: [libaby.vercel.app](https://libaby.vercel.app)
-
-## Roadmap
-
-### Completed ✅
-- [x] Multi-library support (Shamela, Turath)
-- [x] Book download and management
-- [x] Full-text search with Meilisearch
-- [x] Arabic diacritics support
-- [x] RTL content display
-- [x] Author and category pages
-- [x] Transliteration support
-- [x] Global and book-specific search
-- [x] Zustand state management
-
-### Near Term
-- [ ] User notes and annotations per book/page
-- [ ] Bookmarks and reading progress
-- [ ] Tag system for organizing content
-- [ ] Search filters (author, category, date range)
-- [ ] Export/import library data
-- [ ] Dark mode support
-- [ ] Advanced page navigation (jump to page, TOC)
-
-### Future Integrations
-- [ ] **AI Agents**: Server actions are already agent-ready for research assistance
-- [ ] **Alternative Search**: Option to use SQLite FTS5, Typesense
-- [ ] **Offline PWA**: Progressive Web App support
-- [ ] **Multi-User**: Authentication and cloud sync
-- [ ] **Mobile Apps**: React Native or Tauri desktop/mobile
-- [ ] **API**: RESTful API for third-party integrations
-
-## Troubleshooting
-
-### Search Not Working
-1. Ensure Meilisearch is running: `http://localhost:7700`
-2. Check environment variables in `.env`
-3. Run indexing: `bun run index`
-4. Check Meilisearch logs for errors
-
-### Books Not Appearing
-1. Verify API keys in Settings
-2. Check `data/downloaded.json` exists
-3. Ensure book files exist in `data/libraries/{library}/books/`
-
-### Performance Issues
-1. Meilisearch index might be rebuilding (check logs)
-2. Clear cache and restart: delete `data/meili_data/`
-3. Increase Meilisearch memory limit if needed
 
 ## Contributing
 
-Contributions welcome! Please:
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes with semantic commit messages
-4. Push to the branch (`git push origin feature/amazing-feature`)
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Follow the code style — Biome (`bun run lint:fix && bun run format:fix`)
+4. Commit with [Conventional Commits](https://www.conventionalcommits.org/)
 5. Open a pull request
-
-### Development Guidelines
-- Use TypeScript for all new code
-- Follow existing code style (Biome formatter)
-- Add types for all functions and components
-- Prefer arrow functions
-- Minimize re-renders with proper memoization
-- Use Server Actions for data operations
 
 ## License
 
-MIT License - see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
 
 ## Support
 
 - **Issues**: [github.com/ragaeeb/libaby/issues](https://github.com/ragaeeb/libaby/issues)
-- **Discussions**: [github.com/ragaeeb/libaby/discussions](https://github.com/ragaeeb/libaby/discussions)
 - **Repository**: [github.com/ragaeeb/libaby](https://github.com/ragaeeb/libaby)
-
-## Acknowledgments
-
-Built with [Next.js](https://nextjs.org), [Meilisearch](https://www.meilisearch.com), [shadcn/ui](https://ui.shadcn.com), and [Bun](https://bun.sh).
-
-Special thanks to the Islamic digital library communities at Shamela and Turath for providing access to classical texts.
-
----
-
-**Note**: This is early-stage software. APIs and data formats may change between versions.

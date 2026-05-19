@@ -7,6 +7,7 @@ const STORAGE_KEYS = {
 } as const;
 
 type SettingsState = {
+  hydrated: boolean;
   huggingfaceToken: string;
   shamelaDataset: string;
   shamelaAccessVerified: boolean;
@@ -20,31 +21,43 @@ type SettingsState = {
   setValidating: (validating: boolean) => void;
 };
 
-export const useSettingsStore = create<SettingsState>((set) => ({
+export const useSettingsStore = create<SettingsState>((set, get) => ({
   huggingfaceToken: "",
-  shamelaDataset: "",
-  shamelaAccessVerified: false,
-  validating: false,
-  validationError: null,
 
   hydrate: () => {
+    if (get().hydrated) {
+      return;
+    }
+
     const encoded = localStorage.getItem(STORAGE_KEYS.huggingfaceToken);
     const token = encoded ? atob(encoded) : "";
     const dataset = localStorage.getItem(STORAGE_KEYS.shamelaDataset) || "";
 
-    set({ huggingfaceToken: token, shamelaDataset: dataset });
+    set({ huggingfaceToken: token, hydrated: true, shamelaDataset: dataset });
 
     if (token && dataset) {
       set({ validating: true });
       validateAccess(token, dataset)
         .then((result) => {
-          set({ shamelaAccessVerified: result.ok, validationError: result.error ?? null, validating: false });
+          set({
+            shamelaAccessVerified: result.ok,
+            validating: false,
+            validationError: result.error ?? null,
+          });
         })
         .catch(() => {
           set({ validating: false });
         });
     }
   },
+  hydrated: false,
+
+  setValidating: (validating) => set({ validating }),
+
+  setValidation: ({ verified, error }) =>
+    set({ shamelaAccessVerified: verified, validating: false, validationError: error }),
+  shamelaAccessVerified: false,
+  shamelaDataset: "",
 
   updateHuggingfaceToken: (token) => {
     localStorage.setItem(STORAGE_KEYS.huggingfaceToken, btoa(token));
@@ -53,11 +66,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 
   updateShamelaDataset: (dataset) => {
     localStorage.setItem(STORAGE_KEYS.shamelaDataset, dataset);
-    set({ shamelaDataset: dataset, shamelaAccessVerified: false, validationError: null });
+    set({ shamelaAccessVerified: false, shamelaDataset: dataset, validationError: null });
   },
-
-  setValidation: ({ verified, error }) =>
-    set({ shamelaAccessVerified: verified, validationError: error, validating: false }),
-
-  setValidating: (validating) => set({ validating }),
+  validating: false,
+  validationError: null,
 }));

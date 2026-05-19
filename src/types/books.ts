@@ -1,6 +1,13 @@
-import type { BookData, DenormalizedBook, Page, Title } from "shamela";
+import type { BookData, DenormalizedBook as BaseDenormalizedBook, Page, Title } from "shamela";
 
-export type { BookData, DenormalizedBook, Page, Title };
+/** DenormalizedBook with English translations injected by Rust at index-build time */
+export type DenormalizedBook = BaseDenormalizedBook & {
+  en_name?: string;
+  en_author?: string;
+  en_category?: string;
+};
+
+export type { BookData, Page, Title };
 
 export type MasterArchive = {
   timestamp: number;
